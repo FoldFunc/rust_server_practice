@@ -1726,6 +1726,7 @@ dependencies = [
  "actix-web",
  "chrono",
  "cookie 0.18.1",
+ "rand 0.8.5",
  "serde",
  "sqlx",
  "tokio",

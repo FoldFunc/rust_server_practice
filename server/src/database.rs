@@ -13,6 +13,19 @@ pub async fn database_table_creation_function_token(pool: &PgPool) -> Result<(),
     println!("Created token");
     Ok(())
 }
+pub async fn database_table_creation_function_crypto(pool: &PgPool) -> Result<(), sqlx::Error> {
+    let query = r#"
+        CREATE TABLE IF NOT EXISTS crypto(
+            name VARCHAR(255) NOT NULL,
+            price VARCHAR(255) NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+    "#;
+
+    sqlx::query(query).execute(pool).await?;
+    println!("Created token");
+    Ok(())
+}
 pub async fn database_table_creation_function_users(pool: &PgPool) -> Result<(), sqlx::Error> {
     let query = r#"
         CREATE TABLE IF NOT EXISTS users (

@@ -1,10 +1,10 @@
 use reqwest::Client;
 use reqwest::cookie::Jar;
 use serde::Serialize;
+
 use std::fs;
 use std::io::{self, Write};
 use std::sync::Arc;
-
 #[derive(Serialize)]
 struct Register {
     email: String,
@@ -15,6 +15,10 @@ struct Register {
 struct Login {
     email: String,
     password: String,
+}
+#[derive(Serialize)]
+struct ChangePrice {
+    name: String,
 }
 
 #[tokio::main]
@@ -88,6 +92,20 @@ async fn handle_commands(
                     .await?;
 
                 println!("Logout status: {}", res.status());
+                println!("Response: {}", res.text().await?);
+                break;
+            }
+            "change price" => {
+                let change_price = build_client_with_cookies(cookie_jar.clone())?;
+                let change_data = ChangePrice {
+                    name: "bitcoin".to_string(),
+                };
+                let res = change_price
+                    .post("http://localhost:8080/api/root/changeprice")
+                    .json(&change_data)
+                    .send()
+                    .await?;
+                println!("Status: {}", res.status());
                 println!("Response: {}", res.text().await?);
                 break;
             }

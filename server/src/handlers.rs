@@ -1,8 +1,10 @@
 use actix_web::cookie::{Cookie, SameSite};
 use actix_web::{HttpRequest, HttpResponse, Responder, web};
 use cookie::time;
+use rand::{Rng, random};
 use serde::Deserialize;
 use sqlx::PgPool;
+use sqlx::Row;
 use uuid::Uuid;
 #[derive(Deserialize)]
 pub struct RegisterDataStruct {
@@ -149,5 +151,59 @@ pub async fn logout_handler(req: HttpRequest, db_pool: web::Data<PgPool>) -> imp
         }
     } else {
         HttpResponse::BadRequest().body("No auth cookie found")
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct ChangeDataStruct {
+    pub name: String,
+}
+
+pub async fn change_price_handler(
+    req: HttpRequest,
+    db_pool: web::Data<PgPool>,
+    change_price_data: web::Json<ChangeDataStruct>,
+) -> impl Responder {
+    // Optional: token check
+    if let Some(cookie) = req.cookie("auth_root") {
+        let token_value = cookie.value();
+        // TODO: validate token_value if needed
+    } else {
+        return HttpResponse::Unauthorized().body("Missing authentication cookie");
+    }
+
+    // Get current price
+    let row = match sqlx::query("SELECT price FROM crypto WHERE name = $1")
+        .bind(&change_price_data.name)
+        .fetch_one(db_pool.get_ref())
+        .await
+    {
+        Ok(row) => row,
+        Err(e) => {
+            eprintln!("DB error: {}", e);
+            return HttpResponse::InternalServerError().body("Error fetching price");
+        }
+    };
+
+    let current_price: i32 = row.get("price");
+
+    // Generate new price around ±10
+    let mut rng = rand::thread_rng();
+    let adjustment = current_price % 10;
+    let new_price = rng.gen_range(current_price - adjustment..=current_price + adjustment);
+
+    // Update new price
+    let update_result = sqlx::query("UPDATE crypto SET price = $1 WHERE name = $2")
+        .bind(new_price)
+        .bind(&change_price_data.name)
+        .execute(db_pool.get_ref())
+        .await;
+
+    match update_result {
+        Ok(_) => HttpResponse::Ok().body("Price changed"),
+        Err(e) => {
+            eprintln!("Error updating price: {}", e);
+            HttpResponse::InternalServerError().body("Failed to update price")
+        }
     }
 }
