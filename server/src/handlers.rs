@@ -207,3 +207,60 @@ pub async fn change_price_handler(
         }
     }
 }
+
+pub async fn create_a_root(req: HttpRequest, db_pool: web::Data<PgPool>) -> impl Responder {
+    // 1. Get the "auth" cookie
+    println!("req: {:?}", req);
+    let cookie = match req.cookie("auth") {
+        Some(c) => c,
+        None => return HttpResponse::Unauthorized().body("Missing cookie"),
+    };
+
+    let token_value = cookie.value();
+
+    // 2. Check if token is valid and get associated email
+    let row = match sqlx::query("SELECT owner FROM token WHERE token = $1")
+        .bind(token_value)
+        .fetch_optional(db_pool.get_ref())
+        .await
+    {
+        Ok(Some(row)) => row,
+        Ok(None) => return HttpResponse::Unauthorized().body("Invalid token"),
+        Err(e) => {
+            eprintln!("DB error (token lookup): {}", e);
+            return HttpResponse::InternalServerError().body("Database error");
+        }
+    };
+
+    let email: String = row.get("owner");
+
+    // 3. Check if user is on the whitelist
+    let is_whitelisted = match sqlx::query("SELECT 1 FROM whitelist WHERE email = $1")
+        .bind(&email)
+        .fetch_optional(db_pool.get_ref())
+        .await
+    {
+        Ok(Some(_)) => true,
+        Ok(None) => false,
+        Err(e) => {
+            eprintln!("DB error (whitelist check): {}", e);
+            return HttpResponse::InternalServerError().body("Database error");
+        }
+    };
+
+    if !is_whitelisted {
+        return HttpResponse::Unauthorized().body("Not on whitelist");
+    }
+
+    // 4. Set a new cookie "auth_root"
+    let auth_root_cookie = Cookie::build("auth_root", token_value.to_string())
+        .path("/")
+        .http_only(true)
+        .secure(false)
+        .finish();
+
+    // 5. Return response with new cookie
+    HttpResponse::Ok()
+        .cookie(auth_root_cookie)
+        .body("Root access granted")
+}

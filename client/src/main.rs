@@ -109,6 +109,15 @@ async fn handle_commands(
                 println!("Response: {}", res.text().await?);
                 break;
             }
+            "get root" => {
+                let get_root = build_client_with_cookies(cookie_jar.clone())?;
+                let res = get_root
+                    .post("http://localhost:8080/api/getroot")
+                    .send()
+                    .await?;
+                println!("Status: {}", res.status());
+                println!("Response: {}", res.text().await?);
+            }
             _ => println!("Unknown command."),
         }
     }

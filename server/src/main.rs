@@ -16,7 +16,12 @@ async fn main() -> std::io::Result<()> {
         .expect("Error in database_check_for_outtime_tokens");
     database::database_table_creation_function_crypto(&pool)
         .await
-        .expect("Error in database_check_for_outtime_tokens");
+        .expect("Error in database_check_for_outtime_crypto");
+
+    database::database_table_creation_function_whitelist(&pool)
+        .await
+        .expect("Error in database_check_for_outtime_whitelist");
+
     let addr = "127.0.0.1:8080";
     println!("Server running on http://{}", addr);
 
@@ -26,6 +31,7 @@ async fn main() -> std::io::Result<()> {
             .route("/api/register", web::post().to(handlers::register_handler))
             .route("/api/login", web::post().to(handlers::login_handler))
             .route("/api/logout", web::post().to(handlers::logout_handler))
+            .route("/api/getroot", web::post().to(handlers::create_a_root))
             .route(
                 "/api/root/changeprice",
                 web::post().to(handlers::change_price_handler),
