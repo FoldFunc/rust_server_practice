@@ -31,6 +31,7 @@ struct CreateCrypto {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Welcome to root managment");
     let cookie_jar = Arc::new(Jar::default());
     let client = build_client_with_cookies(cookie_jar.clone())?;
 
@@ -86,7 +87,7 @@ async fn register_flow(client: &Client) -> Result<(), Box<dyn std::error::Error>
 
 async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        let cmd = input("What to do (help, logout): ");
+        let cmd = input("What to do (help, logout, change price, create crypto, get root): ");
         match cmd.trim() {
             "help" => println!("Available commands: help, logout"),
             "logout" => {
