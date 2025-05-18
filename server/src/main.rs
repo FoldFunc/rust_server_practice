@@ -22,7 +22,7 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Error in database_check_for_outtime_whitelist");
 
-    let addr = "127.0.0.1:8080";
+    let addr = "localhost:8080";
     println!("Server running on http://{}", addr);
 
     HttpServer::new(move || {
@@ -35,6 +35,10 @@ async fn main() -> std::io::Result<()> {
             .route(
                 "/api/root/changeprice",
                 web::post().to(handlers::change_price_handler),
+            )
+            .route(
+                "/api/root/addcrypto",
+                web::post().to(handlers::create_crypto),
             )
     })
     .bind(addr)?

@@ -5,6 +5,7 @@ use serde::Serialize;
 use std::fs;
 use std::io::{self, Write};
 use std::sync::Arc;
+
 #[derive(Serialize)]
 struct Register {
     email: String,
@@ -16,32 +17,42 @@ struct Login {
     email: String,
     password: String,
 }
+
 #[derive(Serialize)]
 struct ChangePrice {
     name: String,
 }
 
+#[derive(Serialize)]
+struct CreateCrypto {
+    name: String,
+    price: i32,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cookie_jar = Arc::new(Jar::default());
+    let client = build_client_with_cookies(cookie_jar.clone())?;
+
     let has_account = input("Do you have an account? (yes/no): ").to_lowercase();
 
     if has_account == "yes" {
-        login_flow().await?;
+        login_flow(&client).await?;
     } else {
-        register_flow().await?;
+        register_flow(&client).await?;
+        login_flow(&client).await?;
     }
+
+    handle_commands(&client).await?;
 
     Ok(())
 }
 
-async fn login_flow() -> Result<(), Box<dyn std::error::Error>> {
+async fn login_flow(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     println!("Please log in:");
     let email = input("Enter email: ");
     let password = input("Enter password: ");
     let login_data = Login { email, password };
-
-    let cookie_jar = Arc::new(Jar::default());
-    let client = build_client_with_cookies(cookie_jar.clone())?;
 
     let res = client
         .post("http://localhost:8080/api/login")
@@ -54,16 +65,14 @@ async fn login_flow() -> Result<(), Box<dyn std::error::Error>> {
     println!("Status: {}", res.status());
     println!("Server response: {}", res.text().await?);
 
-    handle_commands(client, cookie_jar).await?;
     Ok(())
 }
 
-async fn register_flow() -> Result<(), Box<dyn std::error::Error>> {
+async fn register_flow(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     let email = input("Enter email: ");
     let password = input("Enter password: ");
     let reg_data = Register { email, password };
 
-    let client = Client::new();
     let res = client
         .post("http://localhost:8080/api/register")
         .json(&reg_data)
@@ -72,21 +81,16 @@ async fn register_flow() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Status: {}", res.status());
     println!("Response: {}", res.text().await?);
-    login_flow().await?;
     Ok(())
 }
 
-async fn handle_commands(
-    client: Client,
-    cookie_jar: Arc<Jar>,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let cmd = input("What to do (help, logout): ");
         match cmd.trim() {
             "help" => println!("Available commands: help, logout"),
             "logout" => {
-                let logout_client = build_client_with_cookies(cookie_jar.clone())?;
-                let res = logout_client
+                let res = client
                     .post("http://localhost:8080/api/logout")
                     .send()
                     .await?;
@@ -96,27 +100,49 @@ async fn handle_commands(
                 break;
             }
             "change price" => {
-                let change_price = build_client_with_cookies(cookie_jar.clone())?;
                 let change_data = ChangePrice {
                     name: "bitcoin".to_string(),
                 };
-                let res = change_price
+                let res = client
                     .post("http://localhost:8080/api/root/changeprice")
                     .json(&change_data)
                     .send()
                     .await?;
                 println!("Status: {}", res.status());
                 println!("Response: {}", res.text().await?);
-                break;
             }
             "get root" => {
-                let get_root = build_client_with_cookies(cookie_jar.clone())?;
-                let res = get_root
+                let res = client
                     .post("http://localhost:8080/api/getroot")
                     .send()
                     .await?;
                 println!("Status: {}", res.status());
                 println!("Response: {}", res.text().await?);
+            }
+            "create crypto" => {
+                let crypto_name = input("Enter crypto name: ");
+                let crypto_price = loop {
+                    let input_str = input("Enter crypto starting price: ");
+                    match input_str.trim().parse::<i32>() {
+                        Ok(price) => break price,
+                        Err(_) => println!("Invalid number, try again."),
+                    }
+                };
+
+                let crypto = CreateCrypto {
+                    name: crypto_name,
+                    price: crypto_price,
+                };
+
+                let res = client
+                    .post("http://localhost:8080/api/root/addcrypto")
+                    .json(&crypto)
+                    .send()
+                    .await?;
+
+                println!("Status: {}", res.status());
+                let body = res.text().await?;
+                println!("Response: {}", body);
             }
             _ => println!("Unknown command."),
         }

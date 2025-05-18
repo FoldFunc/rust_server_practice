@@ -64,105 +64,112 @@ pub async fn login_handler(
     login_data: web::Json<LoginDataStruct>,
     db_pool: web::Data<PgPool>,
 ) -> impl Responder {
-    // Step 1: Validate credentials
-    let result = sqlx::query("SELECT 1 FROM users WHERE email = $1 AND password = $2")
+    // Validate credentials
+    let user_exists = sqlx::query("SELECT 1 FROM users WHERE email = $1 AND password = $2")
         .bind(&login_data.email)
         .bind(&login_data.password)
         .fetch_optional(db_pool.get_ref())
         .await;
 
-    match result {
-        Ok(Some(_)) => {
-            // Step 2: Check if user already has a token
-            let existing_token = sqlx::query("SELECT 1 FROM token WHERE owner = $1")
-                .bind(&login_data.email)
-                .fetch_optional(db_pool.get_ref())
-                .await;
+    if let Ok(Some(_)) = user_exists {
+        // Check if token already exists for user
+        let existing_token = sqlx::query("SELECT token FROM token WHERE owner = $1")
+            .bind(&login_data.email)
+            .fetch_optional(db_pool.get_ref())
+            .await;
 
-            match existing_token {
-                Ok(Some(_)) => {
-                    return HttpResponse::BadRequest().body("Already logged in");
+        match existing_token {
+            Ok(Some(_)) => {
+                // Token exists, check if admin
+                let is_admin = sqlx::query("SELECT 1 FROM whitelist WHERE email = $1")
+                    .bind(&login_data.email)
+                    .fetch_optional(db_pool.get_ref())
+                    .await;
+
+                let cookie_name = if is_admin.is_ok() && is_admin.unwrap().is_some() {
+                    "auth_root"
+                } else {
+                    "auth"
+                };
+
+                let token = Uuid::new_v4().to_string();
+                let cookie = Cookie::build(cookie_name, &token)
+                    .path("/")
+                    .http_only(true)
+                    .secure(false)
+                    .same_site(SameSite::Lax)
+                    .max_age(time::Duration::days(1))
+                    .finish();
+                // Insert token in DB
+                let insert_result = sqlx::query("INSERT INTO token (token, owner) VALUES ($1, $2)")
+                    .bind(&token)
+                    .bind(&login_data.email)
+                    .execute(db_pool.get_ref())
+                    .await;
+
+                if insert_result.is_err() {
+                    return HttpResponse::InternalServerError().body("Failed to insert token");
                 }
-                Ok(None) => {
-                    let token = Uuid::new_v4().to_string();
 
-                    // Step 3: Check if user is admin (whitelisted)
-                    let check_admin = sqlx::query("SELECT 1 FROM whitelist WHERE email = $1")
-                        .bind(&login_data.email)
-                        .fetch_optional(db_pool.get_ref())
-                        .await;
+                return HttpResponse::Ok()
+                    .cookie(cookie)
+                    .body(if cookie_name == "auth_root" {
+                        "Admin login successful"
+                    } else {
+                        "Login successful"
+                    });
+            }
+            Ok(None) => {
+                // No token exists, create new
+                let token = Uuid::new_v4().to_string();
 
-                    match check_admin {
-                        Ok(Some(_)) => {
-                            let token_admin = Uuid::new_v4().to_string();
-                            let insert_admin_res =
-                                sqlx::query("INSERT INTO token (token, owner) VALUES ($1, $2)")
-                                    .bind(&token_admin)
-                                    .bind(&login_data.email)
-                                    .execute(db_pool.get_ref())
-                                    .await;
+                // Check admin status
+                let is_admin = sqlx::query("SELECT 1 FROM whitelist WHERE email = $1")
+                    .bind(&login_data.email)
+                    .fetch_optional(db_pool.get_ref())
+                    .await;
 
-                            if let Err(e) = insert_admin_res {
-                                eprintln!("Admin token insert error: {}", e);
-                                return HttpResponse::InternalServerError()
-                                    .body("Failed to insert token");
-                            }
+                let cookie_name = if is_admin.is_ok() && is_admin.unwrap().is_some() {
+                    "auth_root"
+                } else {
+                    "auth"
+                };
 
-                            let cookie_admin = Cookie::build("auth_root", token_admin)
-                                .path("/")
-                                .http_only(true)
-                                .secure(false) // 🔐 Set to true in production
-                                .same_site(SameSite::Lax)
-                                .max_age(time::Duration::days(1))
-                                .finish();
+                // Insert token in DB
+                let insert_result = sqlx::query("INSERT INTO token (token, owner) VALUES ($1, $2)")
+                    .bind(&token)
+                    .bind(&login_data.email)
+                    .execute(db_pool.get_ref())
+                    .await;
 
-                            return HttpResponse::Ok()
-                                .cookie(cookie_admin)
-                                .body("Admin login successful");
-                        }
-                        Ok(None) => {
-                            // Regular user
-                            let insert_res =
-                                sqlx::query("INSERT INTO token (token, owner) VALUES ($1, $2)")
-                                    .bind(&token)
-                                    .bind(&login_data.email)
-                                    .execute(db_pool.get_ref())
-                                    .await;
-
-                            if let Err(e) = insert_res {
-                                eprintln!("Token insert error: {}", e);
-                                return HttpResponse::InternalServerError()
-                                    .body("Failed to insert token");
-                            }
-
-                            let cookie = Cookie::build("auth", token)
-                                .path("/")
-                                .http_only(true)
-                                .secure(false) // 🔐 Set to true in production
-                                .same_site(SameSite::Lax)
-                                .max_age(time::Duration::days(1))
-                                .finish();
-
-                            return HttpResponse::Ok().cookie(cookie).body("Login successful");
-                        }
-                        Err(e) => {
-                            eprintln!("Whitelist check error: {}", e);
-                            return HttpResponse::InternalServerError()
-                                .body("Error checking whitelist");
-                        }
-                    }
+                if insert_result.is_err() {
+                    return HttpResponse::InternalServerError().body("Failed to insert token");
                 }
-                Err(e) => {
-                    eprintln!("Token check error: {}", e);
-                    return HttpResponse::InternalServerError().body("Database error");
-                }
+
+                let cookie = Cookie::build(cookie_name, &token)
+                    .path("/")
+                    .http_only(true)
+                    .secure(false)
+                    .same_site(SameSite::Lax)
+                    .max_age(time::Duration::days(1))
+                    .finish();
+
+                return HttpResponse::Ok()
+                    .cookie(cookie)
+                    .body(if cookie_name == "auth_root" {
+                        "Admin login successful"
+                    } else {
+                        "Login successful"
+                    });
+            }
+            Err(_) => {
+                return HttpResponse::InternalServerError().body("Database error checking token");
             }
         }
-        Ok(None) => HttpResponse::Unauthorized().body("Invalid email or password"),
-        Err(e) => {
-            eprintln!("Login DB error: {}", e);
-            HttpResponse::InternalServerError().body("Database error")
-        }
+    } else if let Ok(None) = user_exists {
+        HttpResponse::Unauthorized().body("Invalid email or password")
+    } else {
+        HttpResponse::InternalServerError().body("Database error during login")
     }
 }
 pub async fn logout_handler(req: HttpRequest, db_pool: web::Data<PgPool>) -> impl Responder {
@@ -332,4 +339,56 @@ pub async fn create_a_root(req: HttpRequest, db_pool: web::Data<PgPool>) -> impl
     HttpResponse::Ok()
         .cookie(auth_root_cookie)
         .body("Root access granted")
+}
+#[derive(Deserialize)]
+pub struct CreateCryptoStruct {
+    pub name: String,
+    pub price: i32,
+}
+
+pub async fn create_crypto(
+    req: HttpRequest,
+    db_pool: web::Data<PgPool>,
+    create_crypto_data: web::Json<CreateCryptoStruct>,
+) -> impl Responder {
+    println!("req: {:?}", req);
+    // Step 1: Validate admin token
+    let cookie = match req.cookie("auth_root") {
+        Some(c) => c,
+        None => return HttpResponse::Unauthorized().body("Missing or invalid cookie"),
+    };
+
+    let token_value = cookie.value();
+
+    // Step 2: Lookup owner from token
+    let row = match sqlx::query("SELECT owner FROM token WHERE token = $1")
+        .bind(token_value)
+        .fetch_optional(db_pool.get_ref())
+        .await
+    {
+        Ok(Some(row)) => row,
+        Ok(None) => return HttpResponse::Unauthorized().body("Invalid token"),
+        Err(e) => {
+            eprintln!("DB error (token lookup): {}", e);
+            return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
+        }
+    };
+
+    let owner: String = row.get("owner");
+
+    // Step 3: Insert new crypto
+    let result = sqlx::query("INSERT INTO crypto (name, creator, price) VALUES ($1, $2, $3)")
+        .bind(&create_crypto_data.name)
+        .bind(&owner)
+        .bind(create_crypto_data.price)
+        .execute(db_pool.get_ref())
+        .await;
+
+    match result {
+        Ok(_) => HttpResponse::Created().body("Crypto created!"),
+        Err(e) => {
+            eprintln!("DB error (insert crypto): {}", e);
+            HttpResponse::InternalServerError().body("Error inserting crypto")
+        }
+    }
 }

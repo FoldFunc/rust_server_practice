@@ -1,1 +1,1 @@
-auth_root=d58ba2f4-a579-464f-820e-c4ca68f3690b; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400
+auth_root=e193454b-5360-46a9-aa52-747729a44502; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400

@@ -17,6 +17,7 @@ pub async fn database_table_creation_function_crypto(pool: &PgPool) -> Result<()
     let query = r#"
         CREATE TABLE IF NOT EXISTS crypto(
             name VARCHAR(255) NOT NULL,
+            creator VARCHAR(255) NOT NULL,
             price VARCHAR(255) NOT NULL,
             created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );
