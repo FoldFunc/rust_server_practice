@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn login_flow() -> Result<(), Box<dyn std::error::Error>> {
+    println!("Please log in:");
     let email = input("Enter email: ");
     let password = input("Enter password: ");
     let login_data = Login { email, password };

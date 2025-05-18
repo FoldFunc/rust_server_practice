@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use actix_web::cookie::{Cookie, SameSite};
 use actix_web::{App, HttpRequest, HttpResponse, HttpServer, Responder, web};
 use cookie::time;
@@ -163,7 +161,8 @@ async fn database_table_creation_function_token(pool: &PgPool) -> Result<(), sql
     let query = r#"
         CREATE TABLE IF NOT EXISTS token(
             token VARCHAR(255) NOT NULL,
-            owner VARCHAR(255) NOT NULL
+            owner VARCHAR(255) NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );
     "#;
 
@@ -198,10 +197,21 @@ async fn singleton_database_instance_launcher() -> PgPool {
     pool
 }
 
+pub async fn database_check_for_outtime_tokens(pool: &PgPool) -> Result<(), sqlx::Error> {
+    // Delete tokens older than 1 day
+    let query = r#"
+        DELETE FROM token
+        WHERE created_at < NOW() - INTERVAL '1 day'
+    "#;
+
+    sqlx::query(query).execute(pool).await?;
+
+    Ok(())
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let pool = singleton_database_instance_launcher().await;
-
     database_table_creation_function_users(&pool)
         .await
         .expect("Error in database_table_creation_function_users");
@@ -209,6 +219,9 @@ async fn main() -> std::io::Result<()> {
     database_table_creation_function_token(&pool)
         .await
         .expect("Error in database_table_creation_function_token");
+    database_check_for_outtime_tokens(&pool)
+        .await
+        .expect("Error in database_check_for_outtime_tokens");
     let addr = "127.0.0.1:8080";
     println!("Server running on http://{}", addr);
 
