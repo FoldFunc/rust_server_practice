@@ -1,10 +1,11 @@
 use reqwest::Client;
 use serde::Serialize;
-use sqlx::{PgPool, postgres::PgPoolOptions};
-use std::thread;
+use sqlx::Error;
+use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+use std::collections::HashSet;
 use std::time::Duration;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct ToSent {
     name: String,
     secret_key: String,
@@ -14,7 +15,7 @@ async fn singleton_database_instance_launcher() -> PgPool {
     let database_url = "postgres://gsliv:2010@localhost/db1";
     let pool = PgPoolOptions::new()
         .max_connections(20)
-        .connect(database_url) // <-- fix here
+        .connect(database_url)
         .await
         .expect("Failed to connect to DB");
     println!("Connected to db");
@@ -23,15 +24,32 @@ async fn singleton_database_instance_launcher() -> PgPool {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let db_pool = singleton_database_instance_launcher().await; // <-- await here
+    let db_pool = singleton_database_instance_launcher().await;
+    let active_cryptos = HashSet::new();
 
-    let names: Vec<i32> = get_cryptos(&db_pool).await?;
+    loop {
+        let latest_cryptos: HashSet<String> = get_cryptos(&db_pool).await?.into_iter().collect();
 
-    println!("Fetched crypto IDs: {:?}", names);
+        // Spawn tasks only for new cryptos
+        for name in latest_cryptos.clone().difference(&active_cryptos) {
+            let name = name.clone();
+            active_cryptos.clone().insert(name.clone());
+            tokio::spawn(async move {
+                if let Err(e) = send_request_loop(name).await {
+                    eprintln!("Error updating crypto: {}", e);
+                }
+            });
+        }
 
+        // Poll for changes every 10 seconds
+        tokio::time::sleep(Duration::from_secs(10)).await;
+    }
+}
+
+async fn send_request_loop(name: String) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
     let secret_key = ToSent {
-        name: "Solana".to_string(),
+        name: name.clone(),
         secret_key: "secret_no_tell".to_string(),
     };
 
@@ -42,23 +60,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .send()
             .await?;
 
-        println!("Status: {}", res.status());
+        println!("Updated {}: {}", name, res.status());
         println!("Response: {}", res.text().await?);
-        thread::sleep(Duration::from_secs(1));
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
 
-async fn get_cryptos(pool: &PgPool) -> Result<Vec<i32>, sqlx::Error> {
+async fn get_cryptos(pool: &PgPool) -> Result<Vec<String>, Error> {
     let rows = sqlx::query(
         r#"
-        SELECT id FROM crypto
+        SELECT name FROM crypto
         "#,
     )
     .fetch_all(pool)
     .await?;
 
-    let ids = rows.into_iter().map(|row| row.id).collect();
-    println!("Fetched all crypto IDs");
+    let names: Vec<String> = rows
+        .into_iter()
+        .map(|row| row.get::<String, _>("name"))
+        .collect();
 
-    Ok(ids)
+    Ok(names)
 }
