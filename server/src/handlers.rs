@@ -390,3 +390,48 @@ pub async fn create_crypto(
         }
     }
 }
+
+#[derive(Deserialize)]
+pub struct RemoveCryptoStruct {
+    name: String,
+}
+
+pub async fn removecrypto(
+    req: HttpRequest,
+    db_pool: web::Data<PgPool>,
+    remove_crypto_data: web::Json<RemoveCryptoStruct>,
+) -> impl Responder {
+    println!("req: {:?}", req);
+    let cookie = match req.cookie("auth_root") {
+        Some(c) => c,
+        None => return HttpResponse::Unauthorized().body("Missing cookie"),
+    };
+
+    let token_value = cookie.value();
+    let row = match sqlx::query("SELECT owner FROM token WHERE token = $1")
+        .bind(token_value)
+        .fetch_optional(db_pool.get_ref())
+        .await
+    {
+        Ok(Some(row)) => row,
+        Ok(None) => return HttpResponse::Unauthorized().body("Invalid token"),
+        Err(e) => {
+            eprintln!("DB error: {}", e);
+            return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
+        }
+    };
+
+    let _owner: String = row.get("owner");
+
+    let result = sqlx::query("DELETE FROM crypto WHERE name = $1")
+        .bind(remove_crypto_data.name.clone())
+        .execute(db_pool.get_ref())
+        .await;
+    match result {
+        Ok(_) => HttpResponse::Ok().body("Deleted crypto!"),
+        Err(e) => {
+            eprintln!("DB error: {}", e);
+            return HttpResponse::InternalServerError().body(format!("DB error: {}", e));
+        }
+    }
+}

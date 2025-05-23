@@ -28,6 +28,10 @@ struct CreateCrypto {
     name: String,
     price: i32,
 }
+#[derive(Serialize)]
+struct RemoveCrypto {
+    name: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -87,7 +91,9 @@ async fn register_flow(client: &Client) -> Result<(), Box<dyn std::error::Error>
 
 async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        let cmd = input("What to do (help, logout, change price, create crypto, get root): ");
+        let cmd = input(
+            "What to do (help, logout, change price, create crypto, get root, remove crypto): ",
+        );
         match cmd.trim() {
             "help" => println!("Available commands: help, logout"),
             "logout" => {
@@ -144,6 +150,18 @@ async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Erro
                 println!("Status: {}", res.status());
                 let body = res.text().await?;
                 println!("Response: {}", body);
+            }
+            "remove crypto" => {
+                let crypto_name = input("Enter crypto name: ");
+                let crypto = RemoveCrypto { name: crypto_name };
+                let res = client
+                    .post("http://localhost:8080/api/root/removecrypto")
+                    .json(&crypto)
+                    .send()
+                    .await?;
+
+                println!("Status: {}", res.status());
+                println!("Status: {}", res.text().await?);
             }
             _ => println!("Unknown command."),
         }

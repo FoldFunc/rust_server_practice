@@ -55,7 +55,7 @@ async fn send_request_loop(name: String) -> Result<(), Box<dyn std::error::Error
 
     loop {
         let res = client
-            .post("http://localhost:8080/api/root/changeprice")
+            .post("http://localhost:8080/api/middlewear/changeprice")
             .json(&secret_key)
             .send()
             .await?;

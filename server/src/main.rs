@@ -33,12 +33,16 @@ async fn main() -> std::io::Result<()> {
             .route("/api/logout", web::post().to(handlers::logout_handler))
             .route("/api/getroot", web::post().to(handlers::create_a_root))
             .route(
-                "/api/root/changeprice",
+                "/api/middlewear/changeprice",
                 web::post().to(handlers::change_price_handler),
             )
             .route(
                 "/api/root/addcrypto",
                 web::post().to(handlers::create_crypto),
+            )
+            .route(
+                "/api/root/removecrypto",
+                web::post().to(handlers::removecrypto),
             )
     })
     .bind(addr)?
