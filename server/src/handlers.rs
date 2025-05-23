@@ -233,21 +233,17 @@ pub async fn logout_handler(req: HttpRequest, db_pool: web::Data<PgPool>) -> imp
 #[derive(serde::Deserialize)]
 pub struct ChangeDataStruct {
     pub name: String,
+    pub secret_key: String,
 }
 
 pub async fn change_price_handler(
-    req: HttpRequest,
     db_pool: web::Data<PgPool>,
     change_price_data: web::Json<ChangeDataStruct>,
 ) -> impl Responder {
-    // Optional: token check
-    if let Some(cookie) = req.cookie("auth_root") {
-        let token_value = cookie.value();
-        // TODO: validate token_value if needed
-    } else {
-        return HttpResponse::Unauthorized().body("Missing authentication cookie");
+    if change_price_data.secret_key != "secret_no_tell" {
+        eprintln!("Invalid token");
+        return HttpResponse::InternalServerError().body("Invalid token");
     }
-
     // Get current price
     let row = match sqlx::query("SELECT price FROM crypto WHERE name = $1")
         .bind(&change_price_data.name)
@@ -265,8 +261,10 @@ pub async fn change_price_handler(
 
     // Generate new price around ±10
     let mut rng = rand::thread_rng();
-    let adjustment = current_price % 10;
-    let new_price = rng.gen_range(current_price - adjustment..=current_price + adjustment);
+    let adjustment = rng.gen_range(1..=10); // always at least 1
+    let direction = if rng.gen_bool(0.5) { 1 } else { -1 }; // up or down
+    let new_price = (current_price as i32 + direction * adjustment) as i32;
+    println!("New price: {}", new_price);
 
     // Update new price
     let update_result = sqlx::query("UPDATE crypto SET price = $1 WHERE name = $2")

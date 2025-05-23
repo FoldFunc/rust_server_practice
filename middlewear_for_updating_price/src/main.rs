@@ -12,7 +12,7 @@ struct ToSent {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
     let secret_key = ToSent {
-        name: "name".to_string(),
+        name: "Solana".to_string(),
         secret_key: "secret_no_tell".to_string(),
     };
     loop {
