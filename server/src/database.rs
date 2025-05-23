@@ -16,6 +16,7 @@ pub async fn database_table_creation_function_token(pool: &PgPool) -> Result<(),
 pub async fn database_table_creation_function_crypto(pool: &PgPool) -> Result<(), sqlx::Error> {
     let query = r#"
         CREATE TABLE IF NOT EXISTS crypto(
+            id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             creator VARCHAR(255) NOT NULL,
             price INT4 NOT NULL,
