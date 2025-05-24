@@ -439,12 +439,16 @@ pub async fn removecrypto(
 #[derive(Deserialize)]
 pub struct AddPortfolioStruct {
     password: String, // Will hash later
+    name: String,
 }
 pub async fn addportfolio(
     req: HttpRequest,
     db_pool: web::Data<PgPool>,
     add_portfolio_data: web::Json<AddPortfolioStruct>,
 ) -> impl Responder {
+    if add_portfolio_data.password.len() < 8 {
+        return HttpResponse::BadRequest().body("Password too short");
+    }
     println!("req: {:?}", req);
     let cookie = match req.cookie("auth") {
         Some(c) => c,
@@ -466,17 +470,80 @@ pub async fn addportfolio(
     };
 
     let owner: String = row.get("owner");
-    let result =
-        sqlx::query("INSERT INTO portfolios (owner, assets, password) VALUES ($1, $2, $3)")
-            .bind(&owner)
-            .bind("".to_string())
-            .bind(add_portfolio_data.password.clone())
-            .execute(db_pool.get_ref())
-            .await;
+    let result = sqlx::query(
+        "INSERT INTO portfolios (owner, name, assets, password) VALUES ($1, $2, $3, $4)",
+    )
+    .bind(&owner)
+    .bind(add_portfolio_data.name.clone())
+    .bind("".to_string())
+    .bind(add_portfolio_data.password.clone())
+    .execute(db_pool.get_ref())
+    .await;
     match result {
         Ok(_) => HttpResponse::Created().body("Added portfolio"),
         Err(e) => {
             eprintln!("Db error: {}", e);
+            return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
+        }
+    }
+}
+#[derive(Deserialize)]
+pub struct DeletePortfolioStruct {
+    name: String,
+    password: String,
+}
+pub async fn deleteportfolio(
+    req: HttpRequest,
+    db_pool: web::Data<PgPool>,
+    delete_portfolio_data: web::Json<DeletePortfolioStruct>,
+) -> impl Responder {
+    println!("req: {:?}", req);
+    let cookie = match req.cookie("auth") {
+        Some(c) => c,
+        None => return HttpResponse::Unauthorized().body("Missing cookie"),
+    };
+
+    let token_value = cookie.value();
+    let _row = match sqlx::query("SELECT owner FROM token WHERE token =$1")
+        .bind(token_value)
+        .fetch_optional(db_pool.get_ref())
+        .await
+    {
+        Ok(Some(row)) => row,
+        Ok(None) => return HttpResponse::Unauthorized().body("Invalid cookie"),
+        Err(e) => {
+            eprintln!("DB error: {}", e);
+            return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
+        }
+    };
+
+    let valid_password = match sqlx::query("SELECT password FROM portfolios WHERE name = $1")
+        .bind(&delete_portfolio_data.name)
+        .fetch_optional(db_pool.get_ref())
+        .await
+    {
+        Ok(Some(row)) => {
+            let stored_password: String = row.try_get("password").unwrap(); // Or handle error gracefully
+
+            if stored_password != delete_portfolio_data.password {
+                return HttpResponse::BadRequest().body("Invalid password");
+            }
+        }
+        Ok(None) => return HttpResponse::Gone().body("This shudn't happen"),
+        Err(e) => {
+            eprintln!("DB error: {}", e);
+            return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
+        }
+    };
+
+    let result = sqlx::query("DELETE FROM portfolios WHERE name = $1")
+        .bind(&delete_portfolio_data.name)
+        .execute(db_pool.get_ref())
+        .await;
+    match result {
+        Ok(_) => HttpResponse::Ok().body("Portfolio deleted"),
+        Err(e) => {
+            eprintln!("DB error: {}", e);
             return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
         }
     }

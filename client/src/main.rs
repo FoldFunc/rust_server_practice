@@ -1,10 +1,8 @@
 use reqwest::Client;
 use reqwest::cookie::Jar;
 use serde::Serialize;
-
 use std::fs;
 use std::io::{self, Write};
-use std::ops::Add;
 use std::sync::Arc;
 
 #[derive(Serialize)]
@@ -36,6 +34,12 @@ struct RemoveCrypto {
 #[derive(Serialize)]
 struct AddPortfolio {
     password: String,
+    name: String,
+}
+#[derive(Serialize)]
+struct DeletePortfolio {
+    password: String,
+    name: String,
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -168,12 +172,34 @@ async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Erro
                 println!("Status: {}", res.text().await?);
             }
             "add portfolio" => {
-                let portfolio_password = input("Enter portfolio password");
+                let portfolio_name = input("Enter portfolio name: ");
+                let portfolio_password = input("Enter portfolio password: ");
                 let portfolio = AddPortfolio {
                     password: portfolio_password,
+                    name: portfolio_name,
                 };
                 let res = client
                     .post("http://localhost:8080/api/addportfolio")
+                    .json(&portfolio)
+                    .send()
+                    .await?;
+                println!("Status: {}", res.status());
+                println!("Rsponse : {}", res.text().await?);
+            }
+            "delete portfolio" => {
+                let sure = input("Are you sure you want to delete the portfolio(yes, no): ")
+                    .to_lowercase();
+                if sure == "no" {
+                    break;
+                }
+                let portfolio_name = input("Enter portfolio name for verification: ");
+                let portfolio_password = input("Enter portfolio password for verification: ");
+                let portfolio = DeletePortfolio {
+                    password: portfolio_password,
+                    name: portfolio_name,
+                };
+                let res = client
+                    .post("http://localhost:8080/api/deleteportfolio")
                     .json(&portfolio)
                     .send()
                     .await?;

@@ -37,6 +37,10 @@ async fn main() -> std::io::Result<()> {
             .route("/api/getroot", web::post().to(handlers::create_a_root))
             .route("/api/addportfolio", web::post().to(handlers::addportfolio))
             .route(
+                "/api/deleteportfolio",
+                web::post().to(handlers::deleteportfolio),
+            )
+            .route(
                 "/api/middlewear/changeprice",
                 web::post().to(handlers::change_price_handler),
             )

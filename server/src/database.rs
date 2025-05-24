@@ -18,6 +18,7 @@ pub async fn database_table_creation_function_portfolios(pool: &PgPool) -> Resul
         CREATE TABLE IF NOT EXISTS portfolios(
         id SERIAL PRIMARY KEY,
         owner VARCHAR(255),
+        name VARCHAR(255),
         assets VARCHAR(255),
         password VARCHAR(255),
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
