@@ -17,6 +17,7 @@ pub async fn database_table_creation_function_portfolios(pool: &PgPool) -> Resul
     let query = r#"
         CREATE TABLE IF NOT EXISTS portfolios(
         id SERIAL PRIMARY KEY,
+        money INT4 NOT NULL,
         owner VARCHAR(255),
         name VARCHAR(255),
         assets VARCHAR(255),

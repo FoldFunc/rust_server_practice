@@ -53,6 +53,13 @@ struct FetchCryptoPrises {
 struct FetchCryptoSpecifc {
     name: String,
 }
+#[derive(Deserialize, Debug, Serialize)]
+struct BuyCrypto {
+    portfolioname: String,
+    portfoliopassword: String,
+    crypto_to_buy: String,
+    amount: i32,
+}
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to root managment");
@@ -253,6 +260,35 @@ async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Erro
 
                 let crypto_names: Vec<FetchCryptoSpecifc> = res.json().await?;
                 println!("JSON received: {:?}", crypto_names);
+            }
+            "buy crypto" => {
+                let crypto_name =
+                    input("Give the name of the crypto you won't to buy(full name): ");
+                let amount = loop {
+                    let input_str = input("How many of this stocks would you like: ");
+                    match input_str.trim().parse::<i32>() {
+                        Ok(price) => break price,
+                        Err(_) => println!("Invalid number try again"),
+                    }
+                };
+                let portfolio_name = input("To which portfolio you want to add it?: ");
+                let portfolio_password = input("Give me the password for this portfolio: ");
+
+                let crypto_buy = BuyCrypto {
+                    portfolioname: portfolio_name,
+                    portfoliopassword: portfolio_password,
+                    crypto_to_buy: crypto_name,
+                    amount: amount,
+                };
+
+                let res = client
+                    .post("http://localhost:8080/api/crypto/buycrypto")
+                    .json(&crypto_buy)
+                    .send()
+                    .await?;
+                println!("Status: {}", res.status());
+                let body = res.text().await?;
+                println!("Response: {}", body);
             }
             _ => println!("Unknown command."),
         }

@@ -1,6 +1,7 @@
 mod database;
 mod handlers;
-mod handlersstocks;
+mod handlerscrypto;
+mod handlerscryptoapi;
 use actix_web::{App, HttpServer, web};
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -43,15 +44,19 @@ async fn main() -> std::io::Result<()> {
             )
             .route(
                 "/api/fetch/cryptonames",
-                web::post().to(handlersstocks::fetchstocknames),
+                web::post().to(handlerscrypto::fetchstocknames),
             )
             .route(
                 "/api/fetch/cryptoprices",
-                web::post().to(handlersstocks::fetchstockprices),
+                web::post().to(handlerscrypto::fetchstockprices),
             )
             .route(
                 "/api/fetch/cryptospecific",
-                web::post().to(handlersstocks::fetchstockspecific),
+                web::post().to(handlerscrypto::fetchstockspecific),
+            )
+            .route(
+                "/api/crypto/buycrypto",
+                web::post().to(handlerscryptoapi::buycrypto),
             )
             .route(
                 "/api/middlewear/changeprice",

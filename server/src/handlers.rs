@@ -470,10 +470,12 @@ pub async fn addportfolio(
     };
 
     let owner: String = row.get("owner");
+    let basic_amount: i32 = 1000;
     let result = sqlx::query(
-        "INSERT INTO portfolios (owner, name, assets, password) VALUES ($1, $2, $3, $4)",
+        "INSERT INTO portfolios (owner, money, name, assets, password) VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(&owner)
+    .bind(&basic_amount)
     .bind(add_portfolio_data.name.clone())
     .bind("".to_string())
     .bind(add_portfolio_data.password.clone())
@@ -517,7 +519,7 @@ pub async fn deleteportfolio(
         }
     };
 
-    let valid_password = match sqlx::query("SELECT password FROM portfolios WHERE name = $1")
+    let _valid_password = match sqlx::query("SELECT password FROM portfolios WHERE name = $1")
         .bind(&delete_portfolio_data.name)
         .fetch_optional(db_pool.get_ref())
         .await
