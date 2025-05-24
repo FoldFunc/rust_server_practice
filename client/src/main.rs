@@ -42,8 +42,16 @@ struct DeletePortfolio {
     name: String,
 }
 #[derive(Deserialize, Debug)]
+struct FetchCryptoNames {
+    name: String,
+}
+#[derive(Deserialize, Debug)]
 struct FetchCryptoPrises {
     price: i32,
+}
+#[derive(Deserialize, Debug, Serialize)]
+struct FetchCryptoSpecifc {
+    name: String,
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -218,7 +226,7 @@ async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Erro
 
                 println!("Status: {}", res.status());
 
-                let crypto_names: Vec<FetchCryptoPrises> = res.json().await?;
+                let crypto_names: Vec<FetchCryptoNames> = res.json().await?;
                 println!("JSON received: {:?}", crypto_names);
             }
             "fetch crypto prices" => {
@@ -230,6 +238,20 @@ async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Erro
                 println!("Status: {}", res.status());
 
                 let crypto_names: Vec<FetchCryptoPrises> = res.json().await?;
+                println!("JSON received: {:?}", crypto_names);
+            }
+            "fetch crypto specific" => {
+                let name = input("What crypto name to look for: ");
+                let specific = FetchCryptoSpecifc { name: name };
+                let res = client
+                    .post("http://localhost:8080/api/fetch/cryptospecific")
+                    .json(&specific)
+                    .send()
+                    .await?;
+
+                println!("Status: {}", res.status());
+
+                let crypto_names: Vec<FetchCryptoSpecifc> = res.json().await?;
                 println!("JSON received: {:?}", crypto_names);
             }
             _ => println!("Unknown command."),

@@ -50,6 +50,10 @@ async fn main() -> std::io::Result<()> {
                 web::post().to(handlersstocks::fetchstockprices),
             )
             .route(
+                "/api/fetch/cryptospecific",
+                web::post().to(handlersstocks::fetchstockspecific),
+            )
+            .route(
                 "/api/middlewear/changeprice",
                 web::post().to(handlers::change_price_handler),
             )
