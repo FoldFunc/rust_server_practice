@@ -1,5 +1,6 @@
 mod database;
 mod handlers;
+mod handlersstocks;
 use actix_web::{App, HttpServer, web};
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -39,6 +40,14 @@ async fn main() -> std::io::Result<()> {
             .route(
                 "/api/deleteportfolio",
                 web::post().to(handlers::deleteportfolio),
+            )
+            .route(
+                "/api/fetch/cryptonames",
+                web::post().to(handlersstocks::fetchstocknames),
+            )
+            .route(
+                "/api/fetch/cryptoprices",
+                web::post().to(handlersstocks::fetchstockprices),
             )
             .route(
                 "/api/middlewear/changeprice",

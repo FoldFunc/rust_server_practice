@@ -1,6 +1,6 @@
 use reqwest::Client;
 use reqwest::cookie::Jar;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{self, Write};
 use std::sync::Arc;
@@ -40,6 +40,10 @@ struct AddPortfolio {
 struct DeletePortfolio {
     password: String,
     name: String,
+}
+#[derive(Deserialize, Debug)]
+struct FetchCryptoPrises {
+    price: i32,
 }
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -205,6 +209,28 @@ async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Erro
                     .await?;
                 println!("Status: {}", res.status());
                 println!("Rsponse : {}", res.text().await?);
+            }
+            "fetch crypto names" => {
+                let res = client
+                    .post("http://localhost:8080/api/fetch/cryptonames")
+                    .send()
+                    .await?;
+
+                println!("Status: {}", res.status());
+
+                let crypto_names: Vec<FetchCryptoPrises> = res.json().await?;
+                println!("JSON received: {:?}", crypto_names);
+            }
+            "fetch crypto prices" => {
+                let res = client
+                    .post("http://localhost:8080/api/fetch/cryptoprices")
+                    .send()
+                    .await?;
+
+                println!("Status: {}", res.status());
+
+                let crypto_names: Vec<FetchCryptoPrises> = res.json().await?;
+                println!("JSON received: {:?}", crypto_names);
             }
             _ => println!("Unknown command."),
         }
