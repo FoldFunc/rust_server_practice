@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use std::fs;
 use std::io::{self, Write};
+use std::ops::Add;
 use std::sync::Arc;
 
 #[derive(Serialize)]
@@ -32,7 +33,10 @@ struct CreateCrypto {
 struct RemoveCrypto {
     name: String,
 }
-
+#[derive(Serialize)]
+struct AddPortfolio {
+    password: String,
+}
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Welcome to root managment");
@@ -162,6 +166,19 @@ async fn handle_commands(client: &Client) -> Result<(), Box<dyn std::error::Erro
 
                 println!("Status: {}", res.status());
                 println!("Status: {}", res.text().await?);
+            }
+            "add portfolio" => {
+                let portfolio_password = input("Enter portfolio password");
+                let portfolio = AddPortfolio {
+                    password: portfolio_password,
+                };
+                let res = client
+                    .post("http://localhost:8080/api/addportfolio")
+                    .json(&portfolio)
+                    .send()
+                    .await?;
+                println!("Status: {}", res.status());
+                println!("Rsponse : {}", res.text().await?);
             }
             _ => println!("Unknown command."),
         }

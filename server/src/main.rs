@@ -21,6 +21,9 @@ async fn main() -> std::io::Result<()> {
     database::database_table_creation_function_whitelist(&pool)
         .await
         .expect("Error in database_check_for_outtime_whitelist");
+    database::database_table_creation_function_portfolios(&pool)
+        .await
+        .expect("Error in database_check_for_outtime_portfolio");
 
     let addr = "localhost:8080";
     println!("Server running on http://{}", addr);
@@ -32,6 +35,7 @@ async fn main() -> std::io::Result<()> {
             .route("/api/login", web::post().to(handlers::login_handler))
             .route("/api/logout", web::post().to(handlers::logout_handler))
             .route("/api/getroot", web::post().to(handlers::create_a_root))
+            .route("/api/addportfolio", web::post().to(handlers::addportfolio))
             .route(
                 "/api/middlewear/changeprice",
                 web::post().to(handlers::change_price_handler),

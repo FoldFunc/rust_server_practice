@@ -263,7 +263,7 @@ pub async fn change_price_handler(
     let mut rng = rand::thread_rng();
     let adjustment = rng.gen_range(1..=10); // always at least 1
     let direction = if rng.gen_bool(0.5) { 1 } else { -1 }; // up or down
-    let new_price = (current_price as i32 + direction * adjustment) as i32;
+    let new_price = i32::abs((current_price as i32 + direction * adjustment) as i32);
     println!("New price: {}", new_price);
 
     // Update new price
@@ -432,6 +432,52 @@ pub async fn removecrypto(
         Err(e) => {
             eprintln!("DB error: {}", e);
             return HttpResponse::InternalServerError().body(format!("DB error: {}", e));
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct AddPortfolioStruct {
+    password: String, // Will hash later
+}
+pub async fn addportfolio(
+    req: HttpRequest,
+    db_pool: web::Data<PgPool>,
+    add_portfolio_data: web::Json<AddPortfolioStruct>,
+) -> impl Responder {
+    println!("req: {:?}", req);
+    let cookie = match req.cookie("auth") {
+        Some(c) => c,
+        None => return HttpResponse::Unauthorized().body("Missing cookie"),
+    };
+
+    let token_value = cookie.value();
+    let row = match sqlx::query("SELECT OWNER FROM token WHERE token = $1")
+        .bind(token_value)
+        .fetch_optional(db_pool.get_ref())
+        .await
+    {
+        Ok(Some(row)) => row,
+        Ok(None) => return HttpResponse::Unauthorized().body("Invalid token"),
+        Err(e) => {
+            eprintln!("DB error: {}", e);
+            return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
+        }
+    };
+
+    let owner: String = row.get("owner");
+    let result =
+        sqlx::query("INSERT INTO portfolios (owner, assets, password) VALUES ($1, $2, $3)")
+            .bind(&owner)
+            .bind("".to_string())
+            .bind(add_portfolio_data.password.clone())
+            .execute(db_pool.get_ref())
+            .await;
+    match result {
+        Ok(_) => HttpResponse::Created().body("Added portfolio"),
+        Err(e) => {
+            eprintln!("Db error: {}", e);
+            return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
         }
     }
 }

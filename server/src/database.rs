@@ -13,6 +13,21 @@ pub async fn database_table_creation_function_token(pool: &PgPool) -> Result<(),
     println!("Created token");
     Ok(())
 }
+pub async fn database_table_creation_function_portfolios(pool: &PgPool) -> Result<(), sqlx::Error> {
+    let query = r#"
+        CREATE TABLE IF NOT EXISTS portfolios(
+        id SERIAL PRIMARY KEY,
+        owner VARCHAR(255),
+        assets VARCHAR(255),
+        password VARCHAR(255),
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+    "#;
+
+    sqlx::query(query).execute(pool).await?;
+    println!("Created portfolios");
+    Ok(())
+}
 pub async fn database_table_creation_function_crypto(pool: &PgPool) -> Result<(), sqlx::Error> {
     let query = r#"
         CREATE TABLE IF NOT EXISTS crypto(
