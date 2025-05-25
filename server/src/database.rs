@@ -30,6 +30,7 @@ pub async fn database_table_creation_function_portfolios(pool: &PgPool) -> Resul
     println!("Created portfolios");
     Ok(())
 }
+
 pub async fn database_table_creation_function_crypto(pool: &PgPool) -> Result<(), sqlx::Error> {
     let query = r#"
         CREATE TABLE IF NOT EXISTS crypto(
@@ -45,6 +46,7 @@ pub async fn database_table_creation_function_crypto(pool: &PgPool) -> Result<()
     println!("Created crypto");
     Ok(())
 }
+
 pub async fn database_table_creation_function_users(pool: &PgPool) -> Result<(), sqlx::Error> {
     let query = r#"
         CREATE TABLE IF NOT EXISTS users (

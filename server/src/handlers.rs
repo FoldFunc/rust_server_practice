@@ -5,6 +5,9 @@ use rand::Rng;
 use serde::Deserialize;
 use sqlx::PgPool;
 use sqlx::Row;
+use std::path::Path;
+use tokio::fs;
+use tokio::io::AsyncWriteExt; // at the top of your file
 use uuid::Uuid;
 #[derive(Deserialize)]
 pub struct RegisterDataStruct {
@@ -468,7 +471,7 @@ pub async fn addportfolio(
             return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
         }
     };
-
+    let _ = create_empty_portfolio_json_files(&db_pool).await;
     let owner: String = row.get("owner");
     let basic_amount: i32 = 1000;
     let result = sqlx::query(
@@ -488,6 +491,33 @@ pub async fn addportfolio(
             return HttpResponse::InternalServerError().body(format!("Database error: {}", e));
         }
     }
+}
+
+pub async fn create_empty_portfolio_json_files(pool: &PgPool) -> Result<(), sqlx::Error> {
+    let rows = sqlx::query("SELECT id FROM portfolios")
+        .fetch_all(pool)
+        .await?;
+
+    let dir_path = Path::new("portfolioassets");
+    fs::create_dir_all(dir_path)
+        .await
+        .expect("Failed to create directory");
+
+    for row in rows {
+        let id: i32 = row.try_get("id")?; // Use try_get with column name
+        let file_path = dir_path.join(format!("portfolio{}.json", id));
+        if !file_path.exists() {
+            let mut file = fs::File::create(&file_path)
+                .await
+                .expect("Failed to create file");
+            file.write_all(b"").await.expect("Failed to write to file");
+            println!("Created empty file: {:?}", file_path);
+        } else {
+            println!("File already exists: {:?}", file_path);
+        }
+    }
+
+    Ok(())
 }
 #[derive(Deserialize)]
 pub struct DeletePortfolioStruct {
