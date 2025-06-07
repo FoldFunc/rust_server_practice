@@ -1,20 +1,23 @@
 use sdl2::event::Event;
+use sdl2::image::{InitFlag, LoadTexture};
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::Canvas;
-use sdl2::render::TextureCreator;
+use sdl2::render::{Canvas, Texture, TextureCreator};
 use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
 use std::time::Duration;
-struct Button {
+
+struct Button<'a> {
     x: i32,
     y: i32,
     w: u32,
     h: u32,
     color: (u8, u8, u8),
+    texture: Option<Texture<'a>>,
 }
+
 struct Inputfield {
     x: i32,
     y: i32,
@@ -24,16 +27,23 @@ struct Inputfield {
     color: (u8, u8, u8),
     pressed: bool,
 }
+
 trait Drawable {
     fn draw(&self, canvas: &mut Canvas<Window>);
 }
-impl Drawable for Button {
+
+impl<'a> Drawable for Button<'a> {
     fn draw(&self, canvas: &mut Canvas<Window>) {
-        canvas.set_draw_color(Color::RGB(self.color.0, self.color.1, self.color.2));
         let rect = Rect::new(self.x, self.y, self.w, self.h);
-        canvas.fill_rect(rect).unwrap();
+        if let Some(texture) = &self.texture {
+            let _ = canvas.copy(texture, None, rect);
+        } else {
+            canvas.set_draw_color(Color::RGB(self.color.0, self.color.1, self.color.2));
+            let _ = canvas.fill_rect(rect);
+        }
     }
 }
+
 impl Inputfield {
     fn draw_with_text(
         &self,
@@ -59,9 +69,11 @@ impl Inputfield {
 }
 
 fn main() {
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-    let ttf_context = sdl2::ttf::init().unwrap();
+    let sdl_context = sdl2::init().expect("SDL init failed");
+    let video_subsystem = sdl_context.video().expect("SDL video failed");
+    let ttf_context = sdl2::ttf::init().expect("TTF init failed");
+    sdl2::image::init(InitFlag::PNG).expect("Image init failed");
+
     let window = video_subsystem
         .window("Stock market game", 1920, 1080)
         .position_centered()
@@ -70,8 +82,15 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
     let mut event_pump = sdl_context.event_pump().unwrap();
+
     let font_path = "src/font.ttf";
-    let font = ttf_context.load_font(font_path, 24).unwrap();
+    let font = ttf_context
+        .load_font(font_path, 24)
+        .expect("Failed to load font");
+
+    let texture_login_button = texture_creator
+        .load_texture("src/assets/button_login.png")
+        .expect("Failed to load button texture");
 
     let button_login = Button {
         x: 860,
@@ -79,7 +98,9 @@ fn main() {
         w: 200,
         h: 100,
         color: (204, 41, 54),
+        texture: Some(texture_login_button),
     };
+
     let mut email_login_fieald = Inputfield {
         x: 860,
         y: 420,
@@ -89,6 +110,7 @@ fn main() {
         color: (204, 41, 54),
         pressed: false,
     };
+
     let mut password_login_fieald = Inputfield {
         x: 860,
         y: 220,
@@ -112,7 +134,6 @@ fn main() {
                 } => {
                     if mouse_btn == MouseButton::Left && point_in_button(x, y, &button_login) {
                         println!("Button clicked");
-                        // let _ = send_login_data();
                     } else if mouse_btn == MouseButton::Left
                         && point_in_input_field(x, y, &email_login_fieald)
                     {
@@ -145,8 +166,8 @@ fn main() {
                 _ => {}
             }
         }
-        let colors = vec![8 as u8, 65 as u8, 92 as u8];
-        let _ = bg_color(&mut canvas, colors);
+
+        bg_color(&mut canvas, vec![8, 65, 92]);
         button_login.draw(&mut canvas);
         email_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
         password_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
@@ -154,6 +175,7 @@ fn main() {
         std::thread::sleep(Duration::from_millis(16));
     }
 }
+
 fn bg_color(canvas: &mut Canvas<Window>, colors: Vec<u8>) {
     canvas.set_draw_color(Color::RGB(colors[0], colors[1], colors[2]));
     canvas.clear();
@@ -165,6 +187,7 @@ fn point_in_button(x: i32, y: i32, button: &Button) -> bool {
         && y >= button.y
         && y <= button.y + button.h as i32
 }
+
 fn point_in_input_field(x: i32, y: i32, bar: &Inputfield) -> bool {
     x >= bar.x && x <= bar.x + bar.w as i32 && y >= bar.y && y <= bar.y + bar.h as i32
 }
