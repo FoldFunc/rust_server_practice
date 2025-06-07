@@ -89,6 +89,15 @@ fn main() {
         color: (204, 41, 54),
         pressed: false,
     };
+    let mut password_login_fieald = Inputfield {
+        x: 860,
+        y: 220,
+        w: 200,
+        h: 100,
+        text: String::new(),
+        color: (204, 41, 54),
+        pressed: false,
+    };
 
     'running: loop {
         for event in event_pump.poll_iter() {
@@ -108,11 +117,19 @@ fn main() {
                         && point_in_input_field(x, y, &email_login_fieald)
                     {
                         email_login_fieald.pressed = !email_login_fieald.pressed;
+                        password_login_fieald.pressed = false;
+                    } else if mouse_btn == MouseButton::Left
+                        && point_in_input_field(x, y, &password_login_fieald)
+                    {
+                        password_login_fieald.pressed = !password_login_fieald.pressed;
+                        email_login_fieald.pressed = false;
                     }
                 }
                 Event::TextInput { text, .. } => {
                     if email_login_fieald.pressed {
                         email_login_fieald.text.push_str(&text);
+                    } else if password_login_fieald.pressed {
+                        password_login_fieald.text.push_str(&text);
                     }
                 }
                 Event::KeyDown {
@@ -121,6 +138,8 @@ fn main() {
                 } => {
                     if email_login_fieald.pressed {
                         email_login_fieald.text.pop();
+                    } else if password_login_fieald.pressed {
+                        password_login_fieald.text.pop();
                     }
                 }
                 _ => {}
@@ -130,6 +149,7 @@ fn main() {
         let _ = bg_color(&mut canvas, colors);
         button_login.draw(&mut canvas);
         email_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
+        password_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
         canvas.present();
         std::thread::sleep(Duration::from_millis(16));
     }
