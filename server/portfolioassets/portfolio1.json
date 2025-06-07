@@ -2,6 +2,15 @@
   {
     "name": "Solana",
     "amount": 1,
+<<<<<<< HEAD
     "price_bought": 890
+=======
+    "price_bought": 248
+  },
+  {
+    "name": "Solana",
+    "amount": 2,
+    "price_bought": 266
+>>>>>>> parent of 18a8fa6 (Finished buying and selling stocks, now I can start making an game window and all of it.)
   }
 ]

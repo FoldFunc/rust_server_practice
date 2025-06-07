@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 auth=d95d9b90-2f02-4f34-8eeb-183f07fa8ea2; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400
+=======
+auth=8c42c2a2-a000-408c-9da1-f559ce458b96; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400
+>>>>>>> parent of 18a8fa6 (Finished buying and selling stocks, now I can start making an game window and all of it.)
