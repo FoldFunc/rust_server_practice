@@ -8,6 +8,7 @@ use sdl2::rect::Rect;
 use sdl2::render::{Canvas, TextureCreator};
 use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
+use std::sync::mpsc;
 use std::time::Duration;
 
 struct Button {
@@ -288,7 +289,7 @@ fn main() {
     {};
 
     let mut current_view = View::Login;
-
+    let (tx, _rx) = mpsc::channel();
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -304,21 +305,23 @@ fn main() {
                         match current_view {
                             View::Login => {
                                 if point_in_button(x, y, &button_login) {
-                                    println!("Button login clicked");
                                     let email = email_login_field.text.clone();
                                     let password = password_login_field.text.clone();
+                                    let tx_clone = tx.clone();
                                     std::thread::spawn(move || {
                                         let rt = tokio::runtime::Runtime::new().unwrap();
                                         match rt.block_on(send_to_server::send_login_data(
                                             email, password,
                                         )) {
-                                            Ok(_) => println!("Login successful"),
-                                            Err(e) => eprintln!("Login error: {}", e),
+                                            Ok(_) => {
+                                                let _ = tx_clone.send(true);
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Login error: {}", e);
+                                                let _ = tx_clone.send(false);
+                                            }
                                         }
                                     });
-                                    email_login_field.text.clear();
-                                    password_login_field.text.clear();
-                                    current_view = View::MainScreen;
                                 } else if point_in_button(x, y, &button_change_to_register) {
                                     current_view = View::Register;
                                 } else if point_in_input_field(x, y, &email_login_field) {
@@ -331,21 +334,23 @@ fn main() {
                             }
                             View::Register => {
                                 if point_in_button(x, y, &button_register) {
-                                    println!("Button register clicked");
                                     let email = email_register_field.text.clone();
                                     let password = password_register_field.text.clone();
+                                    let tx_clone = tx.clone();
                                     std::thread::spawn(move || {
                                         let rt = tokio::runtime::Runtime::new().unwrap();
                                         match rt.block_on(send_to_server::send_register_data(
                                             email, password,
                                         )) {
-                                            Ok(_) => println!("Register successful"),
-                                            Err(e) => eprintln!("Register error: {}", e),
+                                            Ok(_) => {
+                                                let _ = tx_clone.send(true);
+                                            }
+                                            Err(e) => {
+                                                eprintln!("Register error: {}", e);
+                                                let _ = tx_clone.send(false);
+                                            }
                                         }
                                     });
-                                    email_register_field.text.clear();
-                                    password_register_field.text.clear();
-                                    current_view = View::Login;
                                 } else if point_in_input_field(x, y, &email_register_field) {
                                     email_register_field.pressed = true;
                                     password_register_field.pressed = false;
