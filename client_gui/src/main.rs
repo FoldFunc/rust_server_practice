@@ -1,22 +1,31 @@
 mod send_to_server;
 use sdl2::event::Event;
-use sdl2::image::{InitFlag, LoadTexture};
+use sdl2::image::InitFlag;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
-use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::render::{Canvas, TextureCreator};
 use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
 use std::time::Duration;
 
-struct Button<'a> {
+struct Button {
     x: i32,
     y: i32,
     w: u32,
     h: u32,
+    color_bg: (u8, u8, u8),
+    color_fg: (u8, u8, u8),
+    text: String,
+}
+struct Text {
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    text: String,
     color: (u8, u8, u8),
-    texture: Option<Texture<'a>>,
 }
 
 struct InputField {
@@ -30,38 +39,99 @@ struct InputField {
     is_password: bool,
 }
 
-trait Drawable {
-    fn draw(&self, canvas: &mut Canvas<Window>);
+impl Text {
+    fn new(x: i32, y: i32, w: u32, h: u32, color: (u8, u8, u8), text: String) -> Self {
+        Text {
+            x,
+            y,
+            w,
+            h,
+            text,
+            color,
+        }
+    }
+
+    fn draw_with_text(
+        &self,
+        canvas: &mut Canvas<Window>,
+        font: &Font,
+        texture_creator: &TextureCreator<WindowContext>,
+    ) {
+        canvas.set_draw_color(Color::RGB(8, 65, 92));
+        let rect = Rect::new(self.x, self.y, self.w, self.h);
+        canvas.fill_rect(rect).unwrap();
+
+        if !self.text.is_empty() {
+            let surface = font
+                .render(&self.text)
+                .blended(Color::RGB(self.color.0, self.color.1, self.color.2))
+                .unwrap();
+            let texture = texture_creator
+                .create_texture_from_surface(&surface)
+                .unwrap();
+            let text_width = surface.width();
+            let text_height = surface.height();
+            let text_x = self.x + ((self.w - text_width) / 2) as i32;
+            let text_y = self.y + ((self.h - text_height) / 2) as i32;
+            let text_rect = Rect::new(text_x, text_y, text_width, text_height);
+            canvas.copy(&texture, None, Some(text_rect)).unwrap();
+        }
+    }
 }
 
-impl<'a> Button<'a> {
+impl Button {
     fn new(
         x: i32,
         y: i32,
         w: u32,
         h: u32,
-        color: (u8, u8, u8),
-        texture: Option<Texture<'a>>,
+        color_bg: (u8, u8, u8),
+        color_fg: (u8, u8, u8),
+        text: String,
     ) -> Self {
         Button {
             x,
             y,
             w,
             h,
-            color,
-            texture,
+            color_bg,
+            color_fg,
+            text,
         }
     }
-}
 
-impl<'a> Drawable for Button<'a> {
-    fn draw(&self, canvas: &mut Canvas<Window>) {
+    fn draw_with_text(
+        &self,
+        canvas: &mut Canvas<Window>,
+        font: &Font,
+        texture_creator: &TextureCreator<WindowContext>,
+    ) {
+        canvas.set_draw_color(Color::RGB(
+            self.color_bg.0,
+            self.color_bg.1,
+            self.color_bg.2,
+        ));
         let rect = Rect::new(self.x, self.y, self.w, self.h);
-        if let Some(texture) = &self.texture {
-            let _ = canvas.copy(texture, None, rect);
-        } else {
-            canvas.set_draw_color(Color::RGB(self.color.0, self.color.1, self.color.2));
-            let _ = canvas.fill_rect(rect);
+        canvas.fill_rect(rect).unwrap();
+
+        if !self.text.is_empty() {
+            let surface = font
+                .render(&self.text)
+                .blended(Color::RGB(
+                    self.color_fg.0,
+                    self.color_fg.1,
+                    self.color_fg.2,
+                ))
+                .unwrap();
+            let texture = texture_creator
+                .create_texture_from_surface(&surface)
+                .unwrap();
+            let text_width = surface.width();
+            let text_height = surface.height();
+            let text_x = self.x + ((self.w - text_width) / 2) as i32;
+            let text_y = self.y + ((self.h - text_height) / 2) as i32;
+            let text_rect = Rect::new(text_x, text_y, text_width, text_height);
+            canvas.copy(&texture, None, Some(text_rect)).unwrap();
         }
     }
 }
@@ -104,15 +174,6 @@ enum View {
     MainScreen,
 }
 
-fn load_texture_or_panic<'a>(
-    path: &str,
-    creator: &'a TextureCreator<WindowContext>,
-) -> Texture<'a> {
-    creator
-        .load_texture(path)
-        .unwrap_or_else(|_| panic!("Failed to load texture: {path}"))
-}
-
 fn bg_color(canvas: &mut Canvas<Window>, colors: Vec<u8>) {
     canvas.set_draw_color(Color::RGB(colors[0], colors[1], colors[2]));
     canvas.clear();
@@ -128,6 +189,7 @@ fn point_in_button(x: i32, y: i32, button: &Button) -> bool {
 fn point_in_input_field(x: i32, y: i32, field: &InputField) -> bool {
     x >= field.x && x <= field.x + field.w as i32 && y >= field.y && y <= field.y + field.h as i32
 }
+
 fn main() {
     let sdl_context = sdl2::init().expect("SDL init failed");
     let video_subsystem = sdl_context.video().expect("SDL video failed");
@@ -152,11 +214,9 @@ fn main() {
         620,
         200,
         100,
-        (204, 41, 54),
-        Some(load_texture_or_panic(
-            "src/assets/button_login.png",
-            &texture_creator,
-        )),
+        (204, 41, 54),   //color bg
+        (255, 255, 255), //color fg
+        "Login".to_string(),
     );
     let button_register = Button::new(
         860,
@@ -164,10 +224,8 @@ fn main() {
         200,
         100,
         (204, 41, 54),
-        Some(load_texture_or_panic(
-            "src/assets/button_register.png",
-            &texture_creator,
-        )),
+        (255, 255, 255),
+        "Register".to_string(),
     );
     let button_change_to_register = Button::new(
         860,
@@ -175,10 +233,8 @@ fn main() {
         200,
         100,
         (8, 65, 92),
-        Some(load_texture_or_panic(
-            "src/assets/button_change_to_register.png",
-            &texture_creator,
-        )),
+        (255, 255, 255),
+        "No account?".to_string(),
     );
 
     let mut email_login_field = InputField {
@@ -221,6 +277,15 @@ fn main() {
         pressed: false,
         is_password: true,
     };
+    let welcome_text = Text::new(
+        810,
+        100,
+        300,
+        100,
+        (255, 255, 255),
+        "Welcome to stock game".to_string(),
+    );
+    {};
 
     let mut current_view = View::Login;
 
@@ -289,7 +354,7 @@ fn main() {
                                     email_register_field.pressed = false;
                                 }
                             }
-                            _ => {}
+                            View::MainScreen => {}
                         }
                     }
                 }
@@ -342,17 +407,19 @@ fn main() {
 
         match current_view {
             View::Login => {
-                button_login.draw(&mut canvas);
-                button_change_to_register.draw(&mut canvas);
+                button_login.draw_with_text(&mut canvas, &font, &texture_creator);
+                button_change_to_register.draw_with_text(&mut canvas, &font, &texture_creator);
                 email_login_field.draw_with_text(&mut canvas, &font, &texture_creator);
                 password_login_field.draw_with_text(&mut canvas, &font, &texture_creator);
             }
             View::Register => {
-                button_register.draw(&mut canvas);
+                button_register.draw_with_text(&mut canvas, &font, &texture_creator);
                 email_register_field.draw_with_text(&mut canvas, &font, &texture_creator);
                 password_register_field.draw_with_text(&mut canvas, &font, &texture_creator);
             }
-            _ => {}
+            View::MainScreen => {
+                welcome_text.draw_with_text(&mut canvas, &font, &texture_creator);
+            }
         }
 
         canvas.present();

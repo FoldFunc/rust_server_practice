@@ -23,7 +23,9 @@ pub async fn send_register_data(email: String, password: String) -> Result<(), B
     println!("send_register_data function called");
     let res = send_credentials("/api/register", email, password).await?;
     println!("Register response: {}", res);
-    if res.trim()a
+    if res.trim() != "Register successful" {
+        return Err("Registration failed".into());
+    }
     Ok(())
 }
 
