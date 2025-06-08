@@ -1,1 +1,1 @@
-1749393945 | auth=f281a731-f1e2-4ac1-8759-598c5c9f58f2; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400
+1749395604 | auth=b23c302c-634d-4376-be73-ea18ceb6f7d8; HttpOnly; SameSite=Lax; Path=/; Max-Age=86400

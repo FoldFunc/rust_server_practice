@@ -7,7 +7,7 @@ use sdl2::mouse::MouseButton;
 use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, TextureCreator};
-use sdl2::ttf::Font;
+use sdl2::ttf::{Font, Sdl2TtfContext};
 use sdl2::video::{Window, WindowContext};
 use std::sync::mpsc::{Receiver, channel};
 use std::thread;
@@ -71,6 +71,33 @@ fn point_in_input_field(x: i32, y: i32, field: &InputField) -> bool {
 fn bg_color(canvas: &mut Canvas<Window>, colors: Vec<u8>) {
     canvas.set_draw_color(Color::RGB(colors[0], colors[1], colors[2]));
     canvas.clear();
+}
+
+// ------------------ FONT SIZE HELPER ------------------
+
+fn find_fitting_font<'a>(
+    ttf_context: &'a Sdl2TtfContext,
+    font_path: &str,
+    display_text: &str,
+    mut font_size: u16,
+    field_w: u32,
+    field_h: u32,
+) -> (Font<'a, 'static>, u16) {
+    let min_font_size = 8;
+    loop {
+        let font = ttf_context.load_font(font_path, font_size).unwrap();
+        let surface = font
+            .render(display_text)
+            .blended(Color::RGB(255, 255, 255))
+            .unwrap();
+        if surface.width() <= field_w && surface.height() <= field_h {
+            return (font, font_size);
+        }
+        if font_size <= min_font_size {
+            return (font, font_size);
+        }
+        font_size -= 1;
+    }
 }
 
 // ------------------ IMPLS ------------------
@@ -149,61 +176,33 @@ impl Text {
         font: &Font,
         texture_creator: &TextureCreator<WindowContext>,
     ) {
-        canvas.set_draw_color(Color::RGB(8, 65, 92));
+        canvas.set_draw_color(Color::RGB(self.color.0, self.color.1, self.color.2));
         canvas
             .fill_rect(Rect::new(self.x, self.y, self.w, self.h))
             .unwrap();
 
         let surface = font
             .render(&self.text)
-            .blended(Color::RGB(self.color.0, self.color.1, self.color.2))
+            .blended(Color::RGB(255, 255, 255))
             .unwrap();
         let texture = texture_creator
             .create_texture_from_surface(&surface)
             .unwrap();
-        let rect = Rect::new(
+        let text_rect = Rect::new(
             self.x + ((self.w - surface.width()) / 2) as i32,
             self.y + ((self.h - surface.height()) / 2) as i32,
             surface.width(),
             surface.height(),
         );
-        canvas.copy(&texture, None, Some(rect)).unwrap();
+        canvas.copy(&texture, None, Some(text_rect)).unwrap();
     }
-}
-
-// This function attempts to shrink the font size until the text fits the input field.
-// Note: This is not efficient as it reloads the font each time. In production, cache fonts by size.
-fn find_fitting_font<'a>(
-    ttf_context: &'a sdl2::ttf::Sdl2TtfContext,
-    font_path: &str,
-    display_text: &str,
-    mut font_size: u16,
-    field_w: u32,
-    field_h: u32,
-) -> Font<'a, 'static> {
-    let min_font_size = 8;
-    let font = loop {
-        let font = ttf_context.load_font(font_path, font_size).unwrap();
-        let surface = font
-            .render(display_text)
-            .blended(Color::RGB(255, 255, 255))
-            .unwrap();
-        if surface.width() <= field_w && surface.height() <= field_h {
-            break font;
-        }
-        if font_size <= min_font_size {
-            break font; // don't shrink smaller than min
-        }
-        font_size -= 1;
-    };
-    font
 }
 
 impl InputField {
     fn draw_with_text(
-        &mut self,
+        &self,
         canvas: &mut Canvas<Window>,
-        ttf_context: &sdl2::ttf::Sdl2TtfContext,
+        ttf_context: &Sdl2TtfContext,
         font_path: &str,
         font_size: &mut u16,
         texture_creator: &TextureCreator<WindowContext>,
@@ -220,8 +219,7 @@ impl InputField {
         };
 
         if !self.text.trim().is_empty() {
-            // Find a font size that fits
-            let font = find_fitting_font(
+            let (font, fitted_size) = find_fitting_font(
                 ttf_context,
                 font_path,
                 &display_text,
@@ -229,6 +227,7 @@ impl InputField {
                 self.w,
                 self.h,
             );
+            *font_size = fitted_size;
             let surface = font
                 .render(&display_text)
                 .blended(Color::RGB(255, 255, 255))
@@ -308,20 +307,39 @@ fn main() {
         (255, 255, 255),
         "Has account?".to_string(),
     );
+    let button_logout = Button::new(
+        1520,
+        100,
+        200,
+        100,
+        (8, 65, 92),
+        (255, 255, 255),
+        "Logout ]->".to_string(),
+    );
     let welcome_text = Text::new(
         810,
         100,
         300,
         100,
-        (255, 255, 255),
+        (8, 65, 92),
         "Welcome to stock game".to_string(),
+    );
+    let welcome_text_login_screen =
+        Text::new(810, 100, 300, 100, (8, 65, 92), "Login to play".to_string());
+    let welcome_text_register_screen = Text::new(
+        810,
+        100,
+        300,
+        100,
+        (8, 65, 92),
+        "Register new account".to_string(),
     );
 
     let mut email_login_field = InputField {
         x: 860,
-        y: 220,
+        y: 420,
         w: 200,
-        h: 100,
+        h: 50,
         text: String::new(),
         color: (204, 41, 54),
         pressed: false,
@@ -329,9 +347,9 @@ fn main() {
     };
     let mut password_login_field = InputField {
         x: 860,
-        y: 420,
+        y: 520,
         w: 200,
-        h: 100,
+        h: 50,
         text: String::new(),
         color: (204, 41, 54),
         pressed: false,
@@ -358,6 +376,8 @@ fn main() {
                         if point_in_button(x, y, &button_login) {
                             let email = email_login_field.text.clone();
                             let password = password_login_field.text.clone();
+                            email_login_field.text = "".to_string();
+                            password_login_field.text = "".to_string();
                             let (tx, rx) = channel();
                             login_result_rx = Some(rx);
                             thread::spawn(move || {
@@ -380,6 +400,8 @@ fn main() {
                         if point_in_button(x, y, &button_register) {
                             let email = email_register_field.text.clone();
                             let password = password_register_field.text.clone();
+                            email_register_field.text = "".to_string();
+                            password_register_field.text = "".to_string();
                             let (tx, rx) = channel();
                             register_result_rx = Some(rx);
                             thread::spawn(move || {
@@ -398,7 +420,12 @@ fn main() {
                             email_register_field.pressed = false;
                         }
                     }
-                    _ => {}
+                    View::MainScreen => {
+                        if point_in_button(x, y, &button_logout) {
+                            println!("Goodbye");
+                            current_view = View::Login;
+                        }
+                    }
                 },
                 Event::TextInput { text, .. } => match current_view {
                     View::Login => {
@@ -543,6 +570,7 @@ fn main() {
                     &mut font_size,
                     &texture_creator,
                 );
+                welcome_text_login_screen.draw_with_text(&mut canvas, &font, &texture_creator);
             }
             View::Register => {
                 button_register.draw_with_text(&mut canvas, &font, &texture_creator);
@@ -554,6 +582,7 @@ fn main() {
                     &mut font_size,
                     &texture_creator,
                 );
+                welcome_text_register_screen.draw_with_text(&mut canvas, &font, &texture_creator);
                 password_register_field.draw_with_text(
                     &mut canvas,
                     &ttf_context,
@@ -564,6 +593,7 @@ fn main() {
             }
             View::MainScreen => {
                 welcome_text.draw_with_text(&mut canvas, &font, &texture_creator);
+                button_logout.draw_with_text(&mut canvas, &font, &texture_creator);
             }
         }
 
