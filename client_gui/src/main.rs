@@ -171,11 +171,41 @@ impl Text {
     }
 }
 
+// This function attempts to shrink the font size until the text fits the input field.
+// Note: This is not efficient as it reloads the font each time. In production, cache fonts by size.
+fn find_fitting_font<'a>(
+    ttf_context: &'a sdl2::ttf::Sdl2TtfContext,
+    font_path: &str,
+    display_text: &str,
+    mut font_size: u16,
+    field_w: u32,
+    field_h: u32,
+) -> Font<'a, 'static> {
+    let min_font_size = 8;
+    let font = loop {
+        let font = ttf_context.load_font(font_path, font_size).unwrap();
+        let surface = font
+            .render(display_text)
+            .blended(Color::RGB(255, 255, 255))
+            .unwrap();
+        if surface.width() <= field_w && surface.height() <= field_h {
+            break font;
+        }
+        if font_size <= min_font_size {
+            break font; // don't shrink smaller than min
+        }
+        font_size -= 1;
+    };
+    font
+}
+
 impl InputField {
     fn draw_with_text(
         &mut self,
         canvas: &mut Canvas<Window>,
-        font: &Font,
+        ttf_context: &sdl2::ttf::Sdl2TtfContext,
+        font_path: &str,
+        font_size: &mut u16,
         texture_creator: &TextureCreator<WindowContext>,
     ) {
         canvas.set_draw_color(Color::RGB(self.color.0, self.color.1, self.color.2));
@@ -190,6 +220,15 @@ impl InputField {
         };
 
         if !self.text.trim().is_empty() {
+            // Find a font size that fits
+            let font = find_fitting_font(
+                ttf_context,
+                font_path,
+                &display_text,
+                *font_size,
+                self.w,
+                self.h,
+            );
             let surface = font
                 .render(&display_text)
                 .blended(Color::RGB(255, 255, 255))
@@ -197,12 +236,6 @@ impl InputField {
             let texture = texture_creator
                 .create_texture_from_surface(&surface)
                 .unwrap();
-            if self.x + ((self.w - surface.width()) / 2) as i32 >= self.x {
-                self.x += 5;
-            }
-            if self.y + ((self.h - surface.height()) / 2) as i32 >= self.y {
-                self.y += 5;
-            }
             let text_rect = Rect::new(
                 self.x + ((self.w - surface.width()) / 2) as i32,
                 self.y + ((self.h - surface.height()) / 2) as i32,
@@ -213,6 +246,7 @@ impl InputField {
         }
     }
 }
+
 // ------------------ MAIN ------------------
 
 fn main() {
@@ -229,8 +263,9 @@ fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
     let mut event_pump = sdl_context.event_pump().unwrap();
-
-    let font = ttf_context.load_font("src/assets/font.ttf", 24).unwrap();
+    let mut font_size = 24;
+    let font_path = "src/assets/font.ttf";
+    let font = ttf_context.load_font(font_path, font_size).unwrap();
 
     let mut current_view = View::Login;
     let mut login_result_rx: Option<Receiver<bool>> = None;
@@ -494,14 +529,38 @@ fn main() {
             View::Login => {
                 button_login.draw_with_text(&mut canvas, &font, &texture_creator);
                 button_change_to_register.draw_with_text(&mut canvas, &font, &texture_creator);
-                email_login_field.draw_with_text(&mut canvas, &font, &texture_creator);
-                password_login_field.draw_with_text(&mut canvas, &font, &texture_creator);
+                email_login_field.draw_with_text(
+                    &mut canvas,
+                    &ttf_context,
+                    font_path,
+                    &mut font_size,
+                    &texture_creator,
+                );
+                password_login_field.draw_with_text(
+                    &mut canvas,
+                    &ttf_context,
+                    font_path,
+                    &mut font_size,
+                    &texture_creator,
+                );
             }
             View::Register => {
                 button_register.draw_with_text(&mut canvas, &font, &texture_creator);
                 button_change_to_login.draw_with_text(&mut canvas, &font, &texture_creator);
-                email_register_field.draw_with_text(&mut canvas, &font, &texture_creator);
-                password_register_field.draw_with_text(&mut canvas, &font, &texture_creator);
+                email_register_field.draw_with_text(
+                    &mut canvas,
+                    &ttf_context,
+                    font_path,
+                    &mut font_size,
+                    &texture_creator,
+                );
+                password_register_field.draw_with_text(
+                    &mut canvas,
+                    &ttf_context,
+                    font_path,
+                    &mut font_size,
+                    &texture_creator,
+                );
             }
             View::MainScreen => {
                 welcome_text.draw_with_text(&mut canvas, &font, &texture_creator);
