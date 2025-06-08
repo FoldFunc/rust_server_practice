@@ -1,3 +1,4 @@
+mod send_to_server;
 use sdl2::event::Event;
 use sdl2::image::{InitFlag, LoadTexture};
 use sdl2::keyboard::Keycode;
@@ -83,7 +84,7 @@ fn main() {
     let texture_creator = canvas.texture_creator();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    let font_path = "src/font.ttf";
+    let font_path = "src/assets/font.ttf";
     let font = ttf_context
         .load_font(font_path, 24)
         .expect("Failed to load font");
@@ -91,14 +92,36 @@ fn main() {
     let texture_login_button = texture_creator
         .load_texture("src/assets/button_login.png")
         .expect("Failed to load button texture");
+    let texture_register_button = texture_creator
+        .load_texture("src/assets/button_register.png")
+        .expect("Failed to load button texture");
+    let texture_change_to_register_button = texture_creator
+        .load_texture("src/assets/button_change_to_register.png")
+        .expect("Failed to load button texture");
 
     let button_login = Button {
         x: 860,
-        y: 720,
+        y: 620,
         w: 200,
         h: 100,
         color: (204, 41, 54),
         texture: Some(texture_login_button),
+    };
+    let button_register = Button {
+        x: 860,
+        y: 620,
+        w: 200,
+        h: 100,
+        color: (204, 41, 54),
+        texture: Some(texture_register_button),
+    };
+    let button_change_to_register = Button {
+        x: 860,
+        y: 820,
+        w: 200,
+        h: 100,
+        color: (8, 65, 92),
+        texture: Some(texture_change_to_register_button),
     };
 
     let mut email_login_fieald = Inputfield {
@@ -120,7 +143,26 @@ fn main() {
         color: (204, 41, 54),
         pressed: false,
     };
+    let mut email_register_fieald = Inputfield {
+        x: 860,
+        y: 420,
+        w: 200,
+        h: 100,
+        text: String::new(),
+        color: (204, 41, 54),
+        pressed: false,
+    };
 
+    let mut password_regsiter_fieald = Inputfield {
+        x: 860,
+        y: 220,
+        w: 200,
+        h: 100,
+        text: String::new(),
+        color: (204, 41, 54),
+        pressed: false,
+    };
+    let mut current_view = "login".to_string();
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -132,45 +174,122 @@ fn main() {
                 Event::MouseButtonUp {
                     x, y, mouse_btn, ..
                 } => {
-                    if mouse_btn == MouseButton::Left && point_in_button(x, y, &button_login) {
+                    if mouse_btn == MouseButton::Left
+                        && point_in_button(x, y, &button_login)
+                        && current_view == "login".to_string()
+                    {
                         println!("Button clicked");
+                        println!("Information to send email: {}", email_login_fieald.text);
+                        println!(
+                            "Information to send password: {}",
+                            password_login_fieald.text
+                        );
+                        let email = &email_login_fieald.text;
+                        let password = &password_login_fieald.text;
+                        let _ = send_to_server::send_login_data(
+                            email.to_string(),
+                            password.to_string(),
+                        );
+                        email_login_fieald.text = "".to_string();
+                        password_login_fieald.text = "".to_string();
+                    } else if mouse_btn == MouseButton::Left
+                        && point_in_button(x, y, &button_register)
+                        && current_view == "register".to_string()
+                    {
+                        println!("Register button clicked");
+                        println!("Information to send email {}", email_register_fieald.text);
+                        println!(
+                            "Information to send password {}",
+                            password_regsiter_fieald.text
+                        );
+                        let email = email_register_fieald.text;
+                        let password = password_regsiter_fieald.text;
+                        let _ = send_to_server::send_register_data(
+                            password.to_string(),
+                            email.to_string(),
+                        );
+                        email_register_fieald.text = "".to_string();
+                        password_regsiter_fieald.text = "".to_string();
                     } else if mouse_btn == MouseButton::Left
                         && point_in_input_field(x, y, &email_login_fieald)
+                        && current_view == "login".to_string()
                     {
                         email_login_fieald.pressed = !email_login_fieald.pressed;
                         password_login_fieald.pressed = false;
                     } else if mouse_btn == MouseButton::Left
                         && point_in_input_field(x, y, &password_login_fieald)
+                        && current_view == "login".to_string()
                     {
                         password_login_fieald.pressed = !password_login_fieald.pressed;
                         email_login_fieald.pressed = false;
+                    } else if mouse_btn == MouseButton::Left
+                        && point_in_button(x, y, &button_change_to_register)
+                        && current_view == "login".to_string()
+                    {
+                        println!("Changing to register view");
+                        current_view = "register".to_string();
+                    } else if mouse_btn == MouseButton::Left
+                        && point_in_input_field(x, y, &email_register_fieald)
+                        && current_view == "register".to_string()
+                    {
+                        email_register_fieald.pressed = !email_register_fieald.pressed;
+                        password_regsiter_fieald.pressed = false;
+                    } else if mouse_btn == MouseButton::Left
+                        && point_in_input_field(x, y, &password_regsiter_fieald)
+                        && current_view == "register".to_string()
+                    {
+                        password_regsiter_fieald.pressed = !password_regsiter_fieald.pressed;
+                        email_register_fieald.pressed = false;
                     }
                 }
                 Event::TextInput { text, .. } => {
-                    if email_login_fieald.pressed {
+                    if email_login_fieald.pressed && current_view == "login".to_string() {
                         email_login_fieald.text.push_str(&text);
-                    } else if password_login_fieald.pressed {
+                    } else if password_login_fieald.pressed && current_view == "login".to_string() {
                         password_login_fieald.text.push_str(&text);
+                    } else if email_register_fieald.pressed
+                        && current_view == "register".to_string()
+                    {
+                        email_register_fieald.text.push_str(&text);
+                    } else if password_regsiter_fieald.pressed
+                        && current_view == "register".to_string()
+                    {
+                        password_regsiter_fieald.text.push_str(&text);
                     }
                 }
                 Event::KeyDown {
                     keycode: Some(Keycode::Backspace),
                     ..
                 } => {
-                    if email_login_fieald.pressed {
+                    if email_login_fieald.pressed && current_view == "login".to_string() {
                         email_login_fieald.text.pop();
-                    } else if password_login_fieald.pressed {
+                    } else if password_login_fieald.pressed && current_view == "login".to_string() {
                         password_login_fieald.text.pop();
+                    } else if email_register_fieald.pressed
+                        && current_view == "register".to_string()
+                    {
+                        email_register_fieald.text.pop();
+                    } else if password_regsiter_fieald.pressed
+                        && current_view == "register".to_string()
+                    {
+                        password_regsiter_fieald.text.pop();
                     }
                 }
                 _ => {}
             }
         }
 
-        bg_color(&mut canvas, vec![8, 65, 92]);
-        button_login.draw(&mut canvas);
-        email_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
-        password_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
+        let _ = bg_color(&mut canvas, vec![8, 65, 92]);
+        if current_view == "login".to_string() {
+            button_login.draw(&mut canvas);
+            button_change_to_register.draw(&mut canvas);
+            email_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
+            password_login_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
+        } else if current_view == "register".to_string() {
+            email_register_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
+            password_regsiter_fieald.draw_with_text(&mut canvas, &font, &texture_creator);
+            button_register.draw(&mut canvas);
+        }
         canvas.present();
         std::thread::sleep(Duration::from_millis(16));
     }
