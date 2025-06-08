@@ -33,6 +33,7 @@ struct Text {
     text: String,
     color: (u8, u8, u8),
 }
+
 #[derive(Clone)]
 struct InputField {
     x: i32,
@@ -172,7 +173,7 @@ impl Text {
 
 impl InputField {
     fn draw_with_text(
-        &self,
+        &mut self,
         canvas: &mut Canvas<Window>,
         font: &Font,
         texture_creator: &TextureCreator<WindowContext>,
@@ -187,6 +188,7 @@ impl InputField {
         } else {
             self.text.clone()
         };
+
         if !self.text.trim().is_empty() {
             let surface = font
                 .render(&display_text)
@@ -195,23 +197,22 @@ impl InputField {
             let texture = texture_creator
                 .create_texture_from_surface(&surface)
                 .unwrap();
-            canvas
-                .copy(
-                    &texture,
-                    None,
-                    Some(Rect::new(
-                        self.x + 5,
-                        self.y + 10,
-                        surface.width(),
-                        surface.height(),
-                    )),
-                )
-                .unwrap();
-        } else {
+            if self.x + ((self.w - surface.width()) / 2) as i32 >= self.x {
+                self.x += 5;
+            }
+            if self.y + ((self.h - surface.height()) / 2) as i32 >= self.y {
+                self.y += 5;
+            }
+            let text_rect = Rect::new(
+                self.x + ((self.w - surface.width()) / 2) as i32,
+                self.y + ((self.h - surface.height()) / 2) as i32,
+                surface.width(),
+                surface.height(),
+            );
+            canvas.copy(&texture, None, Some(text_rect)).unwrap();
         }
     }
 }
-
 // ------------------ MAIN ------------------
 
 fn main() {
@@ -368,16 +369,14 @@ fn main() {
                     View::Login => {
                         if email_login_field.pressed {
                             email_login_field.text.push_str(&text);
-                        }
-                        if password_login_field.pressed {
+                        } else if password_login_field.pressed {
                             password_login_field.text.push_str(&text);
                         }
                     }
                     View::Register => {
                         if email_register_field.pressed {
                             email_register_field.text.push_str(&text);
-                        }
-                        if password_register_field.pressed {
+                        } else if password_register_field.pressed {
                             password_register_field.text.push_str(&text);
                         }
                     }
@@ -390,18 +389,76 @@ fn main() {
                     View::Login => {
                         if email_login_field.pressed {
                             email_login_field.text.pop();
-                        }
-                        if password_login_field.pressed {
+                        } else if password_login_field.pressed {
                             password_login_field.text.pop();
                         }
                     }
                     View::Register => {
                         if email_register_field.pressed {
                             email_register_field.text.pop();
-                        }
-                        if password_register_field.pressed {
+                        } else if password_register_field.pressed {
                             password_register_field.text.pop();
                         }
+                    }
+                    _ => {}
+                },
+                Event::KeyDown {
+                    keycode: Some(Keycode::Tab),
+                    ..
+                } => match current_view {
+                    View::Login => {
+                        if email_login_field.pressed {
+                            email_login_field.pressed = false;
+                            password_login_field.pressed = true;
+                        } else if password_login_field.pressed {
+                            password_login_field.pressed = false;
+                            email_login_field.pressed = true;
+                        } else {
+                            email_login_field.pressed = true;
+                            password_login_field.pressed = false;
+                        }
+                    }
+                    View::Register => {
+                        if email_register_field.pressed {
+                            email_register_field.pressed = false;
+                            password_register_field.pressed = true;
+                        } else if password_register_field.pressed {
+                            password_register_field.pressed = false;
+                            email_register_field.pressed = true;
+                        } else {
+                            email_register_field.pressed = true;
+                            password_register_field.pressed = false;
+                        }
+                    }
+                    _ => {}
+                },
+                Event::KeyDown {
+                    keycode: Some(Keycode::Return),
+                    ..
+                } => match current_view {
+                    View::Login => {
+                        let email = email_login_field.text.clone();
+                        let password = password_login_field.text.clone();
+                        let (tx, rx) = channel();
+                        login_result_rx = Some(rx);
+                        thread::spawn(move || {
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            let result =
+                                rt.block_on(send_to_server::send_login_data(email, password));
+                            let _ = tx.send(result.is_ok());
+                        });
+                    }
+                    View::Register => {
+                        let email = email_register_field.text.clone();
+                        let password = password_register_field.text.clone();
+                        let (tx, rx) = channel();
+                        register_result_rx = Some(rx);
+                        thread::spawn(move || {
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            let result =
+                                rt.block_on(send_to_server::send_register_data(email, password));
+                            let _ = tx.send(result.is_ok());
+                        });
                     }
                     _ => {}
                 },
