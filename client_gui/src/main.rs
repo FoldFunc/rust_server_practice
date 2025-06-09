@@ -1,72 +1,20 @@
+mod helpers;
 mod send_to_server;
+mod structs;
 use sdl2::event::Event;
 use sdl2::image::InitFlag;
 use sdl2::image::LoadTexture;
 use sdl2::keyboard::Keycode;
 use sdl2::mouse::MouseButton;
-use sdl2::pixels::Color;
-use sdl2::rect::Rect;
-use sdl2::render::Texture;
-use sdl2::render::{Canvas, TextureCreator};
-use sdl2::ttf::{Font, Sdl2TtfContext};
-use sdl2::video::{Window, WindowContext};
 use std::sync::mpsc::{Receiver, channel};
 use std::thread;
 use std::time::Duration;
-// ------------------ UI COMPONENTS ------------------
-struct Border {
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
-    border_thick: u32,
-    body_color: (u8, u8, u8),
-    border_color: (u8, u8, u8),
-}
-struct Subburgerbuttons {
-    bg_color: (u8, u8, u8),
-    font_color: (u8, u8, u8),
-    text: String,
-}
-struct Menuburger {
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
-    _texture: sdl2::image::Sdl2ImageContext,
-    fields: Vec<Subburgerbuttons>,
-}
-struct Button {
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
-    color_bg: (u8, u8, u8),
-    color_fg: (u8, u8, u8),
-    text: String,
-}
-
-struct Text {
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
-    text: String,
-    color: (u8, u8, u8),
-}
-
-#[derive(Clone)]
-struct InputField {
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
-    text: String,
-    color: (u8, u8, u8),
-    pressed: bool,
-    is_password: bool,
-}
-
+use structs::Border;
+use structs::Button;
+use structs::InputField;
+use structs::Menuburger;
+use structs::Subburgerbuttons;
+use structs::Text;
 // ------------------ ENUMS ------------------
 
 #[derive(PartialEq)]
@@ -79,313 +27,6 @@ enum View {
 enum Showburgermenu {
     Show,
     Noshow,
-}
-// ------------------ HELPERS ------------------
-
-fn point_in_button(x: i32, y: i32, button: &Button) -> bool {
-    x >= button.x
-        && x <= button.x + button.w as i32
-        && y >= button.y
-        && y <= button.y + button.h as i32
-}
-fn point_in_burger_menu(x: i32, y: i32, button: &Menuburger) -> bool {
-    x >= button.x
-        && x <= button.x + button.w as i32
-        && y >= button.y
-        && y <= button.y + button.h as i32
-}
-
-fn point_in_input_field(x: i32, y: i32, field: &InputField) -> bool {
-    x >= field.x && x <= field.x + field.w as i32 && y >= field.y && y <= field.y + field.h as i32
-}
-
-fn bg_color(canvas: &mut Canvas<Window>, colors: Vec<u8>) {
-    canvas.set_draw_color(Color::RGB(colors[0], colors[1], colors[2]));
-    canvas.clear();
-}
-
-// ------------------ FONT SIZE HELPER ------------------
-
-fn find_fitting_font<'a>(
-    ttf_context: &'a Sdl2TtfContext,
-    font_path: &str,
-    display_text: &str,
-    mut font_size: u16,
-    field_w: u32,
-    field_h: u32,
-) -> (Font<'a, 'static>, u16) {
-    let min_font_size = 8;
-    loop {
-        let font = ttf_context.load_font(font_path, font_size).unwrap();
-        let surface = font
-            .render(display_text)
-            .blended(Color::RGB(255, 255, 255))
-            .unwrap();
-        if surface.width() <= field_w && surface.height() <= field_h {
-            return (font, font_size);
-        }
-        if font_size <= min_font_size {
-            return (font, font_size);
-        }
-        font_size -= 1;
-    }
-}
-
-// ------------------ IMPLS ------------------
-impl Border {
-    fn new(
-        x: i32,
-        y: i32,
-        w: u32,
-        h: u32,
-        border_thic: u32,
-        body_color: (u8, u8, u8),
-        border_color: (u8, u8, u8),
-    ) -> Self {
-        Border {
-            x: x,
-            y: y,
-            w: (w),
-            h: (h),
-            border_thick: (border_thic),
-            body_color: (body_color),
-            border_color: (border_color),
-        }
-    }
-    fn draw(&self, canvas: &mut Canvas<Window>) {
-        // 1. Border (outer rect)
-        let outer_rect = Rect::new(self.x, self.y, self.w, self.h);
-        canvas.set_draw_color(Color::RGB(
-            self.border_color.0,
-            self.border_color.1,
-            self.border_color.2,
-        ));
-        let _ = canvas.fill_rect(outer_rect);
-
-        // 2. Body (inner rect)
-        let inner_rect = Rect::new(
-            self.x + self.border_thick as i32,
-            self.y + self.border_thick as i32,
-            self.w - 2 * self.border_thick,
-            self.h - 2 * self.border_thick,
-        );
-        canvas.set_draw_color(Color::RGB(
-            self.body_color.0,
-            self.body_color.1,
-            self.body_color.2,
-        ));
-        let _ = canvas.fill_rect(inner_rect);
-    }
-}
-impl Subburgerbuttons {
-    fn new(bg_color: (u8, u8, u8), font_color: (u8, u8, u8), text: String) -> Self {
-        Subburgerbuttons {
-            bg_color: bg_color,
-            font_color: font_color,
-            text: text,
-        }
-    }
-}
-impl Menuburger {
-    fn new(x: i32, y: i32, w: u32, h: u32, texture: sdl2::image::Sdl2ImageContext) -> Self {
-        Menuburger {
-            x: (x),
-            y: (y),
-            w: (w),
-            h: (h),
-            _texture: (texture),
-            fields: Vec::new(),
-        }
-    }
-    fn draw_with_texture(&self, canvas: &mut Canvas<Window>, texture: &Texture) {
-        let target = Rect::new(self.x, self.y, self.w, self.h);
-        canvas.copy(texture, None, Some(target)).unwrap();
-    }
-    fn populate(&mut self, subfields: Vec<Vec<Subburgerbuttons>>) {
-        self.fields.extend(subfields.into_iter().flatten());
-    }
-    fn draw_all(
-        &self,
-        canvas: &mut Canvas<Window>,
-        font: &Font,
-        texture_creator: &TextureCreator<WindowContext>,
-    ) {
-        let mut y_offset = self.y + self.h as i32; // Start drawing below the burger button
-        for field in &self.fields {
-            let field_height = 50;
-            let rect = Rect::new(self.x, y_offset, self.w, field_height);
-            canvas.set_draw_color(Color::RGB(
-                field.bg_color.0,
-                field.bg_color.1,
-                field.bg_color.2,
-            ));
-            canvas.fill_rect(rect).unwrap();
-
-            let surface = font
-                .render(&field.text)
-                .blended(Color::RGB(
-                    field.font_color.0,
-                    field.font_color.1,
-                    field.font_color.2,
-                ))
-                .unwrap();
-            let texture = texture_creator
-                .create_texture_from_surface(&surface)
-                .unwrap();
-            let text_rect = Rect::new(
-                self.x + ((self.w - surface.width()) / 2) as i32,
-                y_offset + ((field_height - surface.height()) / 2) as i32,
-                surface.width(),
-                surface.height(),
-            );
-            canvas.copy(&texture, None, Some(text_rect)).unwrap();
-
-            y_offset += field_height as i32;
-        }
-    }
-}
-impl Button {
-    fn new(
-        x: i32,
-        y: i32,
-        w: u32,
-        h: u32,
-        color_bg: (u8, u8, u8),
-        color_fg: (u8, u8, u8),
-        text: String,
-    ) -> Self {
-        Button {
-            x,
-            y,
-            w,
-            h,
-            color_bg,
-            color_fg,
-            text,
-        }
-    }
-
-    fn draw_with_text(
-        &self,
-        canvas: &mut Canvas<Window>,
-        font: &Font,
-        texture_creator: &TextureCreator<WindowContext>,
-    ) {
-        canvas.set_draw_color(Color::RGB(
-            self.color_bg.0,
-            self.color_bg.1,
-            self.color_bg.2,
-        ));
-        let rect = Rect::new(self.x, self.y, self.w, self.h);
-        canvas.fill_rect(rect).unwrap();
-
-        let surface = font
-            .render(&self.text)
-            .blended(Color::RGB(
-                self.color_fg.0,
-                self.color_fg.1,
-                self.color_fg.2,
-            ))
-            .unwrap();
-        let texture = texture_creator
-            .create_texture_from_surface(&surface)
-            .unwrap();
-        let text_rect = Rect::new(
-            self.x + ((self.w - surface.width()) / 2) as i32,
-            self.y + ((self.h - surface.height()) / 2) as i32,
-            surface.width(),
-            surface.height(),
-        );
-        canvas.copy(&texture, None, Some(text_rect)).unwrap();
-    }
-}
-
-impl Text {
-    fn new(x: i32, y: i32, w: u32, h: u32, color: (u8, u8, u8), text: String) -> Self {
-        Text {
-            x,
-            y,
-            w,
-            h,
-            color,
-            text,
-        }
-    }
-
-    fn draw_with_text(
-        &self,
-        canvas: &mut Canvas<Window>,
-        font: &Font,
-        texture_creator: &TextureCreator<WindowContext>,
-    ) {
-        canvas.set_draw_color(Color::RGB(self.color.0, self.color.1, self.color.2));
-        canvas
-            .fill_rect(Rect::new(self.x, self.y, self.w, self.h))
-            .unwrap();
-
-        let surface = font
-            .render(&self.text)
-            .blended(Color::RGB(255, 255, 255))
-            .unwrap();
-        let texture = texture_creator
-            .create_texture_from_surface(&surface)
-            .unwrap();
-        let text_rect = Rect::new(
-            self.x + ((self.w - surface.width()) / 2) as i32,
-            self.y + ((self.h - surface.height()) / 2) as i32,
-            surface.width(),
-            surface.height(),
-        );
-        canvas.copy(&texture, None, Some(text_rect)).unwrap();
-    }
-}
-
-impl InputField {
-    fn draw_with_text(
-        &self,
-        canvas: &mut Canvas<Window>,
-        ttf_context: &Sdl2TtfContext,
-        font_path: &str,
-        font_size: &mut u16,
-        texture_creator: &TextureCreator<WindowContext>,
-    ) {
-        canvas.set_draw_color(Color::RGB(self.color.0, self.color.1, self.color.2));
-        canvas
-            .fill_rect(Rect::new(self.x, self.y, self.w, self.h))
-            .unwrap();
-
-        let display_text = if self.is_password {
-            "*".repeat(self.text.len())
-        } else {
-            self.text.clone()
-        };
-
-        if !self.text.trim().is_empty() {
-            let (font, fitted_size) = find_fitting_font(
-                ttf_context,
-                font_path,
-                &display_text,
-                *font_size,
-                self.w,
-                self.h,
-            );
-            *font_size = fitted_size;
-            let surface = font
-                .render(&display_text)
-                .blended(Color::RGB(255, 255, 255))
-                .unwrap();
-            let texture = texture_creator
-                .create_texture_from_surface(&surface)
-                .unwrap();
-            let text_rect = Rect::new(
-                self.x + ((self.w - surface.width()) / 2) as i32,
-                self.y + ((self.h - surface.height()) / 2) as i32,
-                surface.width(),
-                surface.height(),
-            );
-            canvas.copy(&texture, None, Some(text_rect)).unwrap();
-        }
-    }
 }
 
 // ------------------ MAIN ------------------
@@ -525,7 +166,7 @@ fn main() {
                     ..
                 } => match current_view {
                     View::Login => {
-                        if point_in_button(x, y, &button_login) {
+                        if helpers::point_in_button(x, y, &button_login) {
                             let email = email_login_field.text.clone();
                             let password = password_login_field.text.clone();
                             email_login_field.text = "".to_string();
@@ -538,18 +179,18 @@ fn main() {
                                     rt.block_on(send_to_server::send_login_data(email, password));
                                 let _ = tx.send(result.is_ok());
                             });
-                        } else if point_in_button(x, y, &button_change_to_register) {
+                        } else if helpers::point_in_button(x, y, &button_change_to_register) {
                             current_view = View::Register;
-                        } else if point_in_input_field(x, y, &email_login_field) {
+                        } else if helpers::point_in_input_field(x, y, &email_login_field) {
                             email_login_field.pressed = true;
                             password_login_field.pressed = false;
-                        } else if point_in_input_field(x, y, &password_login_field) {
+                        } else if helpers::point_in_input_field(x, y, &password_login_field) {
                             password_login_field.pressed = true;
                             email_login_field.pressed = false;
                         }
                     }
                     View::Register => {
-                        if point_in_button(x, y, &button_register) {
+                        if helpers::point_in_button(x, y, &button_register) {
                             let email = email_register_field.text.clone();
                             let password = password_register_field.text.clone();
                             email_register_field.text = "".to_string();
@@ -562,22 +203,22 @@ fn main() {
                                     .block_on(send_to_server::send_register_data(email, password));
                                 let _ = tx.send(result.is_ok());
                             });
-                        } else if point_in_button(x, y, &button_change_to_login) {
+                        } else if helpers::point_in_button(x, y, &button_change_to_login) {
                             current_view = View::Login;
-                        } else if point_in_input_field(x, y, &email_register_field) {
+                        } else if helpers::point_in_input_field(x, y, &email_register_field) {
                             email_register_field.pressed = true;
                             password_register_field.pressed = false;
-                        } else if point_in_input_field(x, y, &password_register_field) {
+                        } else if helpers::point_in_input_field(x, y, &password_register_field) {
                             password_register_field.pressed = true;
                             email_register_field.pressed = false;
                         }
                     }
                     View::MainScreen => {
-                        if point_in_button(x, y, &button_logout) {
+                        if helpers::point_in_button(x, y, &button_logout) {
                             println!("Goodbye");
                             current_view = View::Login;
                         }
-                        if point_in_burger_menu(x, y, &burger_menu) {
+                        if helpers::point_in_burger_menu(x, y, &burger_menu) {
                             if current_burger_view == Showburgermenu::Show {
                                 current_burger_view = Showburgermenu::Noshow;
                             } else {
@@ -710,7 +351,7 @@ fn main() {
         }
 
         // DRAWING
-        bg_color(&mut canvas, vec![8, 65, 92]);
+        helpers::bg_color(&mut canvas, vec![8, 65, 92]);
         match current_view {
             View::Login => {
                 border_on_login.draw(&mut canvas);
