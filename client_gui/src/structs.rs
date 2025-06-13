@@ -15,7 +15,6 @@ pub struct Border {
     pub border_color: (u8, u8, u8),
 }
 pub struct Subburgerbuttons {
-    pub bg_color: (u8, u8, u8),
     pub font_color: (u8, u8, u8),
     pub text: String,
 }
@@ -103,9 +102,8 @@ impl Border {
     }
 }
 impl Subburgerbuttons {
-    pub fn new(bg_color: (u8, u8, u8), font_color: (u8, u8, u8), text: String) -> Self {
+    pub fn new(font_color: (u8, u8, u8), text: String) -> Self {
         Subburgerbuttons {
-            bg_color: bg_color,
             font_color: font_color,
             text: text,
         }
@@ -140,16 +138,6 @@ impl Menuburger {
 
         // 🟩 Draw border **once**, before drawing fields
         let border_y = self.y + self.h as i32;
-        let out_border = Border::new(
-            self.x,
-            border_y - 20,
-            self.w + 20,
-            total_field_height as u32 + 20,
-            2,
-            (8, 65, 92),
-            (255, 255, 255),
-        );
-        out_border.draw(canvas);
 
         // 🟦 Now draw fields inside the border
         let mut y_offset = border_y;
@@ -162,6 +150,16 @@ impl Menuburger {
                     field.font_color.2,
                 ))
                 .unwrap();
+            let out_border = Border::new(
+                self.x,
+                y_offset + ((field_height - surface.height() as i32) / 2) as i32,
+                self.w + 20,
+                total_field_height as u32 + 20,
+                2,
+                (8, 65, 92),
+                (255, 255, 255),
+            );
+            out_border.draw(canvas);
             let texture = texture_creator
                 .create_texture_from_surface(&surface)
                 .unwrap();
