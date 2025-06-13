@@ -91,8 +91,8 @@ impl Border {
         let inner_rect = Rect::new(
             self.x + self.border_thick as i32,
             self.y + self.border_thick as i32,
-            self.w - 2 * self.border_thick,
-            self.h - 2 * self.border_thick,
+            self.w.saturating_sub(2 * self.border_thick),
+            self.h.saturating_sub(2 * self.border_thick),
         );
         canvas.set_draw_color(Color::RGB(
             self.body_color.0,
@@ -135,17 +135,25 @@ impl Menuburger {
         font: &Font,
         texture_creator: &TextureCreator<WindowContext>,
     ) {
-        let mut y_offset = self.y + self.h as i32; // Start drawing below the burger button
-        for field in &self.fields {
-            let field_height = 50;
-            let rect = Rect::new(self.x, y_offset, self.w, field_height);
-            canvas.set_draw_color(Color::RGB(
-                field.bg_color.0,
-                field.bg_color.1,
-                field.bg_color.2,
-            ));
-            canvas.fill_rect(rect).unwrap();
+        let field_height = 50;
+        let total_field_height = self.fields.len() as i32 * field_height;
 
+        // 🟩 Draw border **once**, before drawing fields
+        let border_y = self.y + self.h as i32;
+        let out_border = Border::new(
+            self.x,
+            border_y - 20,
+            self.w + 20,
+            total_field_height as u32 + 20,
+            2,
+            (8, 65, 92),
+            (255, 255, 255),
+        );
+        out_border.draw(canvas);
+
+        // 🟦 Now draw fields inside the border
+        let mut y_offset = border_y;
+        for field in &self.fields {
             let surface = font
                 .render(&field.text)
                 .blended(Color::RGB(
@@ -158,14 +166,15 @@ impl Menuburger {
                 .create_texture_from_surface(&surface)
                 .unwrap();
             let text_rect = Rect::new(
-                self.x + ((self.w - surface.width()) / 2) as i32,
-                y_offset + ((field_height - surface.height()) / 2) as i32,
+                self.x + ((self.w.saturating_sub(surface.width())) / 2) as i32,
+                y_offset + ((field_height - surface.height() as i32) / 2) as i32,
                 surface.width(),
                 surface.height(),
             );
+
             canvas.copy(&texture, None, Some(text_rect)).unwrap();
 
-            y_offset += field_height as i32;
+            y_offset += field_height;
         }
     }
 }

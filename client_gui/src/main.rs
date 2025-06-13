@@ -59,11 +59,10 @@ fn main() {
         .unwrap();
     // UI Components
     let mut burger_menu = Menuburger::new(0, 0, 128, 128, image_context);
-    burger_menu.populate(vec![vec![Subburgerbuttons::new(
-        (8, 65, 92),
-        (255, 255, 255),
-        "Add portfolio".to_string(),
-    )]]);
+    burger_menu.populate(vec![vec![
+        Subburgerbuttons::new((8, 65, 92), (255, 255, 255), "Add portfolio".to_string()),
+        Subburgerbuttons::new((8, 65, 92), (255, 255, 255), "Remove portfolio".to_string()),
+    ]]);
     let button_login = Button::new(
         860,
         620,
